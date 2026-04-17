@@ -1,57 +1,55 @@
 import streamlit as st
 import feedparser
-from model import EthicsRadarV3
+from model import EthicsRadarStable
 
-st.set_page_config(page_title="Ethics Radar V3", layout="wide")
+st.set_page_config(page_title="Ethics Radar Stable", layout="wide")
 
-st.title("🧠 AI Ethics Radar — V3 Research System")
+st.title("🧠 AI Ethics Radar — Stable Version")
 
-@st.cache_resource
-def load():
-    m = EthicsRadarV3()
-    m.train()
-    return m
+# IMPORTANT FIX: no fragile cache first run
+model = EthicsRadarStable()
+model.train()
 
-model = load()
-
-# -------------------------
-# INPUT
-# -------------------------
 st.header("🔍 Text Analysis")
+
 text = st.text_area("Enter text")
 
 if st.button("Analyze") and text:
 
-    r = model.predict(text)
+    try:
+        r = model.predict(text)
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+        col1, col2, col3, col4, col5 = st.columns(5)
 
-    c1.metric("Toxicity", f"{r['toxicity']:.2f}")
-    c2.metric("Bias", f"{r['bias']:.2f}")
-    c3.metric("Risk", f"{r['risk']:.2f}")
-    c4.metric("Framing", f"{r['framing']:.2f}")
-    c5.metric("Sentiment", f"{r['sentiment']:.2f}")
+        col1.metric("Toxicity", f"{r['toxicity']:.2f}")
+        col2.metric("Bias", f"{r['bias']:.2f}")
+        col3.metric("Risk", f"{r['risk']:.2f}")
+        col4.metric("Framing", f"{r['framing']:.2f}")
+        col5.metric("Sentiment", f"{r['sentiment']:.2f}")
 
-    st.success("Analysis complete (calibrated model)")
+    except Exception as e:
+        st.error(f"Model error: {e}")
 
 # -------------------------
-# LIVE FEED
+# LIVE FEED SAFE MODE
 # -------------------------
-st.header("🌍 Live News Intelligence")
+st.header("🌍 Live Feed")
 
-def get_news():
-    feed = feedparser.parse("https://news.google.com/rss")
-    return [x.title for x in feed.entries[:5]]
+def news():
+    try:
+        feed = feedparser.parse("https://news.google.com/rss")
+        return [x.title for x in feed.entries[:5]]
+    except:
+        return []
 
-if st.button("Run Scan"):
+if st.button("Run Live Scan"):
 
-    for item in get_news():
+    for item in news():
 
         r = model.predict(item)
 
         st.markdown("### 🧾 News")
         st.write(item)
-
-        st.write(r)
+        st.json(r)
 
         st.markdown("---")
