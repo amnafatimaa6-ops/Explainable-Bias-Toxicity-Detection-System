@@ -5,23 +5,24 @@ from sklearn.model_selection import train_test_split
 
 class BiasModel:
     def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=3000, stop_words="english")
+        self.vectorizer = TfidfVectorizer(max_features=4000, stop_words="english")
         self.models = {}
 
     def load_data(self):
-
         data = {
             "text": [
                 "I love this idea",
                 "This is terrible and disgusting",
                 "Government supports education policy",
                 "This group is dangerous and bad",
-                "Healthcare improves lives",
-                "People are angry about decision"
+                "Women are not good leaders",
+                "People are amazing and kind",
+                "He is a stupid and useless person",
+                "Education improves society"
             ],
-            "toxicity": [0, 1, 0, 1, 0, 1],
-            "identity_attack": [0, 0, 0, 1, 0, 0],
-            "insult": [0, 1, 0, 1, 0, 0]
+            "toxicity": [0, 1, 0, 1, 1, 0, 1, 0],
+            "identity_attack": [0, 0, 0, 1, 1, 0, 0, 0],
+            "insult": [0, 1, 0, 1, 0, 0, 1, 0]
         }
 
         df = pd.DataFrame(data)
@@ -34,7 +35,6 @@ class BiasModel:
         return df
 
     def train(self):
-
         df = self.load_data()
 
         X = self.vectorizer.fit_transform(df["text"])
@@ -46,17 +46,23 @@ class BiasModel:
                 X, y, test_size=0.2, random_state=42
             )
 
-            model = LogisticRegression(max_iter=200)
+            model = LogisticRegression(max_iter=300)
             model.fit(X_train, y_train)
 
             self.models[target] = model
 
+        print("Model trained ✔")
+
+    # 🔥 FIXED: probability output (IMPORTANT)
     def predict(self, text):
         vec = self.vectorizer.transform([text])
 
+        toxicity_prob = self.models["toxicity_label"].predict_proba(vec)[0][1]
+        bias_prob = self.models["bias_label"].predict_proba(vec)[0][1]
+
         return {
-            "toxicity": int(self.models["toxicity_label"].predict(vec)[0]),
-            "bias_signal": int(self.models["bias_label"].predict(vec)[0])
+            "toxicity": round(float(toxicity_prob), 3),
+            "bias_signal": round(float(bias_prob), 3)
         }
 
     def explain(self, text, model_name="toxicity_label"):
