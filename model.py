@@ -1,4 +1,3 @@
-from datasets import load_dataset
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
@@ -6,23 +5,45 @@ from sklearn.model_selection import train_test_split
 
 class BiasModel:
     def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=5000, stop_words="english")
+        self.vectorizer = TfidfVectorizer(max_features=3000, stop_words="english")
         self.models = {}
 
+    # -------------------------
+    # OFFLINE DATA (NO INTERNET)
+    # -------------------------
+    def load_data(self):
+
+        data = {
+            "text": [
+                "I love this idea, it's amazing",
+                "This is terrible and stupid",
+                "Government should support education",
+                "You are a bad person",
+                "This is very helpful and kind",
+                "I hate this completely",
+                "Education is important for women",
+                "This group is dangerous and bad"
+            ],
+            "toxicity": [0, 1, 0, 1, 0, 1, 0, 1],
+            "identity_attack": [0, 0, 0, 1, 0, 1, 0, 1],
+            "insult": [0, 1, 0, 1, 0, 1, 0, 1]
+        }
+
+        df = pd.DataFrame(data)
+
+        df["toxicity_label"] = df["toxicity"]
+        df["bias_label"] = (
+            (df["identity_attack"] == 1) | (df["insult"] == 1)
+        ).astype(int)
+
+        return df
+
+    # -------------------------
+    # TRAIN MODEL
+    # -------------------------
     def train(self):
 
-        dataset = load_dataset("civil_comments")
-        df = pd.DataFrame(dataset["train"])
-
-        df = df[
-            ["text", "toxicity", "identity_attack", "insult"]
-        ].dropna()
-
-        df["toxicity_label"] = (df["toxicity"] > 0.5).astype(int)
-        df["bias_label"] = (
-            (df["identity_attack"] > 0.5) |
-            (df["insult"] > 0.7)
-        ).astype(int)
+        df = self.load_data()
 
         X = self.vectorizer.fit_transform(df["text"])
 
@@ -38,9 +59,13 @@ class BiasModel:
 
             self.models[target] = model
 
-        print("Model trained ✔")
+        print("Offline model trained ✔")
 
+    # -------------------------
+    # PREDICT
+    # -------------------------
     def predict(self, text):
+
         vec = self.vectorizer.transform([text])
 
         return {
@@ -48,7 +73,11 @@ class BiasModel:
             "bias_signal": int(self.models["bias_label"].predict(vec)[0])
         }
 
+    # -------------------------
+    # EXPLAINABILITY
+    # -------------------------
     def explain(self, text, model_name="toxicity_label"):
+
         vec = self.vectorizer.transform([text])
 
         feature_names = self.vectorizer.get_feature_names_out()
