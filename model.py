@@ -1,12 +1,11 @@
 from transformers import pipeline
 from sentence_transformers import SentenceTransformer, util
 
-# ---------------- MODELS ----------------
 toxicity_model = pipeline("text-classification", model="unitary/toxic-bert")
 sentiment_model = pipeline("sentiment-analysis")
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# ---------------- BIAS DATA ----------------
+# ---------------- BIAS DATABASE ----------------
 bias_db = {
     "gender": [
         "women are not good leaders",
@@ -29,8 +28,7 @@ for label, items in bias_db.items():
 
 bias_embeddings = embedder.encode(bias_texts, convert_to_tensor=True)
 
-
-# ---------------- INTENT ENGINE ----------------
+# ---------------- INTENT ----------------
 def detect_intent(text):
     t = text.lower()
 
@@ -38,7 +36,7 @@ def detect_intent(text):
         return "comparison"
     if "all" in t or "every" in t:
         return "generalization"
-    return "assertion"
+    return "statement"
 
 
 def amplify_bias(score, text):
@@ -48,13 +46,11 @@ def amplify_bias(score, text):
         score *= 1.4
     elif intent == "comparison":
         score *= 1.3
-    elif intent == "assertion":
-        score *= 1.1
 
     return min(score, 1.0)
 
 
-# ---------------- SEMANTIC BIAS ----------------
+# ---------------- BIAS MATCH ----------------
 def semantic_bias(text):
     vec = embedder.encode(text, convert_to_tensor=True)
     scores = util.cos_sim(vec, bias_embeddings)[0]
@@ -64,11 +60,11 @@ def semantic_bias(text):
     return {
         "score": float(scores[idx]),
         "label": bias_labels[idx],
-        "matched": bias_texts[idx]
+        "match": bias_texts[idx]
     }
 
 
-# ---------------- MAIN ANALYSIS ----------------
+# ---------------- MAIN ----------------
 def analyze_text(text):
     tox = toxicity_model(text)[0]
     sent = sentiment_model(text)[0]
@@ -76,18 +72,11 @@ def analyze_text(text):
     raw_bias = semantic_bias(text)
     bias_score = amplify_bias(raw_bias["score"], text)
 
-    text_l = text.lower()
-
-    violence_words = ["kill", "murder", "attack", "bomb", "war"]
-
-    violence = sum(w in text_l for w in violence_words) / 3
-
     return {
         "text": text,
         "toxicity": float(tox["score"]),
         "sentiment": sent["label"],
         "bias_score": bias_score,
         "bias_type": raw_bias["label"],
-        "bias_match": raw_bias["matched"],
-        "violence_score": violence
+        "bias_match": raw_bias["match"]
     }
