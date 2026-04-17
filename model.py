@@ -8,7 +8,7 @@ toxicity_model = pipeline(
 
 sentiment_model = pipeline("sentiment-analysis")
 
-# ---------------- RULE SETS ----------------
+# ---------------- RULES ----------------
 bias_patterns = ["women are", "men are", "they are", "all", "always", "never"]
 target_groups = ["women", "men", "immigrants", "muslims", "christians", "people"]
 
@@ -27,6 +27,7 @@ def is_news(text):
     text_lower = text.lower()
     return any(k in text_lower for k in news_keywords)
 
+
 def analyze_text(text):
     text_lower = text.lower()
 
@@ -36,26 +37,27 @@ def analyze_text(text):
     tox_score = float(tox["score"])
     sentiment_label = sentiment["label"]
 
-    # FEATURE SCORES
-    bias_score = sum(1 for p in bias_patterns if p in text_lower)
-    violence_score = sum(1 for v in violence_keywords if v in text_lower)
-    news_score = sum(1 for n in news_keywords if n in text_lower)
+    # feature detection
+    bias_hits = sum(1 for p in bias_patterns if p in text_lower)
+    violence_hits = sum(1 for v in violence_keywords if v in text_lower)
+    news_hits = sum(1 for n in news_keywords if n in text_lower)
 
     targets = [t for t in target_groups if t in text_lower]
 
-    # NORMALIZE (important)
-    bias_score = min(bias_score / 3, 1.0)
-    violence_score = min(violence_score / 3, 1.0)
-    news_score = min(news_score / 3, 1.0)
+    # normalize scores
+    bias_score = min(bias_hits / 3, 1.0)
+    violence_score = min(violence_hits / 3, 1.0)
+    news_score = min(news_hits / 3, 1.0)
 
-    # FINAL DECISION ENGINE
+    # ---------------- DECISION ENGINE ----------------
+
     if bias_score > 0.3 and targets:
         category = "Bias / Stereotype"
         explanation = f"Generalized statement about {', '.join(targets)}."
 
     elif violence_score > 0.3:
         category = "Violence / Crime Context"
-        explanation = "Mentions violence or harmful events."
+        explanation = "Mentions violence or harmful/criminal events."
 
     elif news_score > 0.4:
         category = "News / Reporting"
@@ -71,8 +73,9 @@ def analyze_text(text):
 
     else:
         category = "Neutral"
-        explanation = "No harmful patterns detected."
+        explanation = "No harmful or biased patterns detected."
 
+    # ---------------- FINAL OUTPUT (FIXED SCHEMA) ----------------
     return {
         "category": category,
         "toxicity": round(tox_score, 3),
@@ -85,7 +88,6 @@ def analyze_text(text):
     }
 
 
-# ---------------- HIGHLIGHTER ----------------
 def highlight_text(text, words):
     if not words:
         return text
