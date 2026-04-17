@@ -2,8 +2,7 @@ import numpy as np
 import pandas as pd
 
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import SGDClassifier
-from sklearn.calibration import CalibratedClassifierCV
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 
 from datasets import load_dataset
@@ -13,11 +12,11 @@ import nltk
 nltk.download("vader_lexicon")
 
 
-class EthicsRadarV3:
+class EthicsRadarStable:
 
     def __init__(self):
         self.vectorizer = TfidfVectorizer(
-            max_features=10000,
+            max_features=8000,
             ngram_range=(1,2),
             stop_words="english"
         )
@@ -26,12 +25,14 @@ class EthicsRadarV3:
         self.sia = SentimentIntensityAnalyzer()
 
     # -------------------------
-    # REAL DATASET (IMPORTANT UPGRADE)
+    # SAFE DATA LOADING (FIXED)
     # -------------------------
     def load_data(self):
 
-        dataset = load_dataset("civil_comments")
-        df = pd.DataFrame(dataset["train"]).sample(20000, random_state=42)
+        dataset = load_dataset("civil_comments", split="train[:5%]")
+        df = pd.DataFrame(dataset)
+
+        df = df[["text", "toxicity", "identity_attack", "insult"]].dropna()
 
         df["toxicity_label"] = (df["toxicity"] > 0.5).astype(int)
 
@@ -40,10 +41,10 @@ class EthicsRadarV3:
             (df["insult"] > 0.7)
         ).astype(int)
 
-        return df[["text", "toxicity_label", "bias_label"]].dropna()
+        return df[["text", "toxicity_label", "bias_label"]]
 
     # -------------------------
-    # TRAINING (CALIBRATED MODEL)
+    # TRAIN (NO CRASH VERSION)
     # -------------------------
     def train(self):
 
@@ -55,74 +56,69 @@ class EthicsRadarV3:
 
             y = df[target]
 
-            base = SGDClassifier(loss="log_loss", max_iter=1000)
+            model = LogisticRegression(
+                max_iter=300,
+                class_weight="balanced"
+            )
 
-            model = CalibratedClassifierCV(base, method="isotonic", cv=3)
             model.fit(X, y)
 
             self.models[target] = model
 
-        print("✔ V3 trained with calibration")
+        print("✔ Stable model trained")
 
     # -------------------------
-    # SENTIMENT LAYER
+    # SENTIMENT
     # -------------------------
     def sentiment(self, text):
-
-        s = self.sia.polarity_scores(text)
-        return abs(s["compound"])
+        return abs(self.sia.polarity_scores(text)["compound"])
 
     # -------------------------
-    # ADVANCED FRAMING DETECTOR
+    # FRAMING BIAS
     # -------------------------
     def framing_bias(self, text):
 
-        text = text.lower()
-
         patterns = [
             "are bad", "are evil", "are dangerous",
-            "all", "always", "never", "most",
-            "typical of", "those people"
+            "all", "always", "never"
         ]
 
-        score = sum(0.2 for p in patterns if p in text)
+        t = text.lower()
+
+        score = sum(0.2 for p in patterns if p in t)
 
         return min(score, 1.0)
 
     # -------------------------
-    # DOMAIN RISK ENGINE (IMPROVED)
+    # RISK ENGINE
     # -------------------------
     def risk_engine(self, text):
 
-        text = text.lower()
-
-        lexicon = {
-            "violence": 0.5,
+        keywords = {
             "war": 0.4,
             "hate": 0.6,
+            "violence": 0.5,
             "kill": 0.7,
-            "attack": 0.5,
             "racist": 0.9,
             "crime": 0.3,
-            "women": 0.15,
-            "government": 0.1
+            "government": 0.1,
+            "women": 0.1
         }
 
-        score = 0
-        for k,v in lexicon.items():
-            if k in text:
-                score += v
+        t = text.lower()
+
+        score = sum(v for k,v in keywords.items() if k in t)
 
         return min(score, 1.0)
 
     # -------------------------
-    # NORMALIZATION (IMPORTANT FOR RESEARCH STABILITY)
+    # NORMALIZE (IMPORTANT)
     # -------------------------
-    def normalize(self, x):
-        return float(np.clip(x, 0.02, 0.98))
+    def norm(self, x):
+        return float(np.clip(x, 0.05, 0.95))
 
     # -------------------------
-    # FINAL PREDICTION (RESEARCH FORMULA)
+    # PREDICT (SAFE VERSION)
     # -------------------------
     def predict(self, text):
 
@@ -135,25 +131,24 @@ class EthicsRadarV3:
         sentiment = self.sentiment(text)
         framing = self.framing_bias(text)
 
-        # LOGIT-STABLE FUSION (research style weighting)
         toxicity = (
-            0.40 * ml_toxic +
+            0.45 * ml_toxic +
             0.25 * risk +
             0.20 * framing +
-            0.15 * sentiment
+            0.10 * sentiment
         )
 
         bias = (
-            0.40 * ml_bias +
-            0.30 * framing +
+            0.45 * ml_bias +
+            0.25 * framing +
             0.20 * risk +
             0.10 * sentiment
         )
 
         return {
-            "toxicity": self.normalize(toxicity),
-            "bias": self.normalize(bias),
-            "risk": self.normalize(risk),
-            "framing": self.normalize(framing),
-            "sentiment": self.normalize(sentiment)
+            "toxicity": self.norm(toxicity),
+            "bias": self.norm(bias),
+            "risk": self.norm(risk),
+            "framing": self.norm(framing),
+            "sentiment": self.norm(sentiment)
         }
