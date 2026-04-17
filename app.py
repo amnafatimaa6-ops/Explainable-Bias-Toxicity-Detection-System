@@ -1,15 +1,14 @@
 import streamlit as st
-import feedparser
 from model import BiasModel
 
-st.set_page_config(page_title="AI Ethics Dashboard", layout="wide")
+st.set_page_config(page_title="AI Ethics Monitor", layout="wide")
 
-st.title("🧠 AI Ethics & Bias Intelligence System")
+st.title("🧠 AI Ethics & Bias Intelligence System (Offline Mode)")
 
-st.write("Real-time bias & toxicity detection using AI + live news feeds")
+st.write("Fully offline AI system for toxicity + bias detection")
 
 # -------------------------
-# SAFE MODEL LOADING
+# CACHE MODEL
 # -------------------------
 @st.cache_resource
 def load_model():
@@ -20,25 +19,9 @@ def load_model():
 model = load_model()
 
 # -------------------------
-# RSS FEEDS (NO API KEY)
-# -------------------------
-RSS_FEEDS = {
-    "Google News": "https://news.google.com/rss",
-    "BBC World": "https://feeds.bbci.co.uk/news/world/rss.xml",
-    "BBC Tech": "https://feeds.bbci.co.uk/news/technology/rss.xml"
-}
-
-def get_news(url):
-    try:
-        feed = feedparser.parse(url)
-        return feed.entries[:5]
-    except:
-        return []
-
-# -------------------------
 # TEXT ANALYSIS
 # -------------------------
-st.header("🔍 Analyze Custom Text")
+st.header("🔍 Analyze Text")
 
 text = st.text_area("Enter text")
 
@@ -47,9 +30,10 @@ if st.button("Analyze") and text:
     result = model.predict(text)
 
     st.subheader("Prediction")
+
     st.json(result)
 
-    st.subheader("Top Influencing Words")
+    st.subheader("Key Influencing Words")
 
     explanation = model.explain(text, "toxicity_label")
 
@@ -57,50 +41,31 @@ if st.button("Analyze") and text:
         st.write(f"{word} → {score:.3f}")
 
 # -------------------------
-# LIVE NEWS ANALYSIS
+# SIMULATED “LIVE NEWS”
 # -------------------------
-st.header("🌍 Live News Bias Scanner")
+st.header("🌍 Simulated News Feed (Offline)")
 
-source = st.selectbox("Select News Source", list(RSS_FEEDS.keys()))
+news_samples = [
+    "Government launches new education policy for students",
+    "Violence reported in major city causing concern",
+    "New AI system improves healthcare and safety",
+    "Controversial speech sparks public debate",
+]
 
-if st.button("Fetch Live News"):
+if st.button("Generate News Analysis"):
 
-    articles = get_news(RSS_FEEDS[source])
+    for item in news_samples:
 
-    if not articles:
-        st.warning("No news found or RSS failed.")
-    else:
-        for a in articles:
+        result = model.predict(item)
 
-            title = a.get("title", "")
-            summary = a.get("summary", "")
+        st.markdown("### 📰 " + item)
 
-            content = title + " " + summary
+        col1, col2 = st.columns(2)
 
-            if not content.strip():
-                continue
+        with col1:
+            st.metric("Toxicity", result["toxicity"])
 
-            result = model.predict(content)
+        with col2:
+            st.metric("Bias Signal", result["bias_signal"])
 
-            st.markdown("### 📰 " + title)
-            st.write(summary)
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                st.metric("Toxicity", result["toxicity"])
-
-            with col2:
-                st.metric("Bias Signal", result["bias_signal"])
-
-            st.markdown("---")
-
-# -------------------------
-# DEBUG PANEL (VERY USEFUL)
-# -------------------------
-st.sidebar.header("System Status")
-
-if st.sidebar.button("Run Health Check"):
-    st.sidebar.success("Model loaded ✔")
-    st.sidebar.success("RSS system ready ✔")
-    st.sidebar.success("Vectorizer active ✔")
+        st.markdown("---")
