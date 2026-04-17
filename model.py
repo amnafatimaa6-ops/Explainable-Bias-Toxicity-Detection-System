@@ -27,7 +27,6 @@ def is_news(text):
     text_lower = text.lower()
     return any(k in text_lower for k in news_keywords)
 
-
 def analyze_text(text):
     text_lower = text.lower()
 
@@ -37,25 +36,30 @@ def analyze_text(text):
     tox_score = float(tox["score"])
     sentiment_label = sentiment["label"]
 
-    # feature detection
-    generalization = any(p in text_lower for p in bias_patterns)
+    # FEATURE SCORES
+    bias_score = sum(1 for p in bias_patterns if p in text_lower)
+    violence_score = sum(1 for v in violence_keywords if v in text_lower)
+    news_score = sum(1 for n in news_keywords if n in text_lower)
+
     targets = [t for t in target_groups if t in text_lower]
-    violence = any(v in text_lower for v in violence_keywords)
-    news_flag = is_news(text_lower)
 
-    # ---------------- SMART CLASSIFICATION ----------------
+    # NORMALIZE (important)
+    bias_score = min(bias_score / 3, 1.0)
+    violence_score = min(violence_score / 3, 1.0)
+    news_score = min(news_score / 3, 1.0)
 
-    if news_flag:
-        category = "News / Factual Reporting"
-        explanation = "This is informational reporting and not personal opinion."
-
-    elif generalization and targets:
+    # FINAL DECISION ENGINE
+    if bias_score > 0.3 and targets:
         category = "Bias / Stereotype"
-        explanation = f"This statement generalizes about {', '.join(targets)}."
+        explanation = f"Generalized statement about {', '.join(targets)}."
 
-    elif violence:
+    elif violence_score > 0.3:
         category = "Violence / Crime Context"
-        explanation = "This text refers to violent or criminal events."
+        explanation = "Mentions violence or harmful events."
+
+    elif news_score > 0.4:
+        category = "News / Reporting"
+        explanation = "Informational or factual reporting content."
 
     elif tox_score > 0.7:
         category = "Toxic Language"
@@ -63,20 +67,20 @@ def analyze_text(text):
 
     elif sentiment_label == "NEGATIVE":
         category = "Negative Opinion"
-        explanation = "Negative sentiment but not necessarily biased."
+        explanation = "Negative sentiment but not bias or toxicity."
 
     else:
         category = "Neutral"
-        explanation = "No harmful or biased patterns detected."
+        explanation = "No harmful patterns detected."
 
     return {
         "category": category,
-        "toxicity_score": round(tox_score, 3),
+        "toxicity": round(tox_score, 3),
+        "bias_score": round(bias_score, 3),
+        "violence_score": round(violence_score, 3),
+        "news_score": round(news_score, 3),
         "sentiment": sentiment_label,
         "targets": targets,
-        "generalization": generalization,
-        "violence": violence,
-        "news": news_flag,
         "explanation": explanation
     }
 
