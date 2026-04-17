@@ -3,5 +3,6 @@ pandas
 numpy
 scikit-learn
 datasets
-joblib
 requests
+feedparser
+joblib
