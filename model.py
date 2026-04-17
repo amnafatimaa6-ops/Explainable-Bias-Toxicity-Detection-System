@@ -3,16 +3,16 @@ import pandas as pd
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from datasets import load_dataset
 from nltk.sentiment import SentimentIntensityAnalyzer
 import nltk
 
 nltk.download("vader_lexicon")
 
 
-class EthicsRadarStable:
+class EthicsRadarSafe:
 
     def __init__(self):
+
         self.vectorizer = TfidfVectorizer(
             max_features=8000,
             ngram_range=(1,2),
@@ -23,26 +23,33 @@ class EthicsRadarStable:
         self.sia = SentimentIntensityAnalyzer()
 
     # -------------------------
-    # DATA (SAFE SMALL SPLIT)
+    # SMALL INTERNAL TRAINING DATA (NO INTERNET)
     # -------------------------
     def load_data(self):
 
-        dataset = load_dataset("civil_comments", split="train[:2%]")
-        df = pd.DataFrame(dataset)
+        data = {
+            "text": [
+                "I love this idea",
+                "This is amazing work",
+                "This is terrible and disgusting",
+                "You are stupid and useless",
+                "Government supports education",
+                "Women are not good leaders",
+                "All men are dangerous",
+                "This group is evil and bad",
+                "Education improves society",
+                "Violence and hate are increasing",
+                "People are kind and helpful",
+                "This policy is unfair"
+            ],
+            "toxicity": [0,0,1,1,0,1,1,1,0,1,0,1],
+            "bias": [0,0,1,1,0,1,1,1,0,1,0,1]
+        }
 
-        df = df[["text", "toxicity", "identity_attack", "insult"]].dropna()
-
-        df["toxicity_label"] = (df["toxicity"] > 0.5).astype(int)
-
-        df["bias_label"] = (
-            (df["identity_attack"] > 0.5) |
-            (df["insult"] > 0.7)
-        ).astype(int)
-
-        return df[["text", "toxicity_label", "bias_label"]]
+        return pd.DataFrame(data)
 
     # -------------------------
-    # TRAIN
+    # TRAIN MODEL
     # -------------------------
     def train(self):
 
@@ -50,20 +57,13 @@ class EthicsRadarStable:
 
         X = self.vectorizer.fit_transform(df["text"])
 
-        for target in ["toxicity_label", "bias_label"]:
+        self.models["toxicity"] = LogisticRegression(max_iter=300)
+        self.models["bias"] = LogisticRegression(max_iter=300)
 
-            y = df[target]
+        self.models["toxicity"].fit(X, df["toxicity"])
+        self.models["bias"].fit(X, df["bias"])
 
-            model = LogisticRegression(
-                max_iter=300,
-                class_weight="balanced"
-            )
-
-            model.fit(X, y)
-
-            self.models[target] = model
-
-        print("✔ Model trained successfully")
+        print("✔ Safe model trained")
 
     # -------------------------
     # SENTIMENT
@@ -72,11 +72,14 @@ class EthicsRadarStable:
         return abs(self.sia.polarity_scores(text)["compound"])
 
     # -------------------------
-    # FRAMING BIAS
+    # FRAMING BIAS DETECTOR
     # -------------------------
-    def framing_bias(self, text):
+    def framing(self, text):
 
-        patterns = ["are bad", "are evil", "are dangerous", "all", "never", "always"]
+        patterns = [
+            "are bad", "are evil", "are dangerous",
+            "all", "never", "always"
+        ]
 
         t = text.lower()
 
@@ -85,9 +88,9 @@ class EthicsRadarStable:
     # -------------------------
     # RISK ENGINE
     # -------------------------
-    def risk_engine(self, text):
+    def risk(self, text):
 
-        keywords = {
+        lexicon = {
             "war": 0.4,
             "hate": 0.6,
             "violence": 0.5,
@@ -100,10 +103,10 @@ class EthicsRadarStable:
 
         t = text.lower()
 
-        return min(sum(v for k, v in keywords.items() if k in t), 1.0)
+        return min(sum(v for k,v in lexicon.items() if k in t), 1.0)
 
     # -------------------------
-    # NORMALIZER
+    # NORMALIZE
     # -------------------------
     def norm(self, x):
         return float(np.clip(x, 0.05, 0.95))
@@ -115,12 +118,12 @@ class EthicsRadarStable:
 
         X = self.vectorizer.transform([text])
 
-        ml_toxic = self.models["toxicity_label"].predict_proba(X)[0][1]
-        ml_bias = self.models["bias_label"].predict_proba(X)[0][1]
+        ml_toxic = self.models["toxicity"].predict_proba(X)[0][1]
+        ml_bias = self.models["bias"].predict_proba(X)[0][1]
 
-        risk = self.risk_engine(text)
+        risk = self.risk(text)
         sentiment = self.sentiment(text)
-        framing = self.framing_bias(text)
+        framing = self.framing(text)
 
         toxicity = (
             0.45 * ml_toxic +
