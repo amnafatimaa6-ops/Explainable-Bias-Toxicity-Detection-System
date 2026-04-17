@@ -1,20 +1,14 @@
 import streamlit as st
 import feedparser
-from model import EthicsRadarResearch
+from model import EthicsRadarV3
 
-st.set_page_config(page_title="AI Ethics Radar Research", layout="wide")
+st.set_page_config(page_title="Ethics Radar V3", layout="wide")
 
-st.markdown("""
-<h1 style='text-align:center;'>🧠 AI Ethics Radar — Research Edition</h1>
-<p style='text-align:center;'>Hybrid ML + Linguistic Bias Detection System</p>
-""", unsafe_allow_html=True)
+st.title("🧠 AI Ethics Radar — V3 Research System")
 
-# -------------------------
-# MODEL
-# -------------------------
 @st.cache_resource
 def load():
-    m = EthicsRadarResearch()
+    m = EthicsRadarV3()
     m.train()
     return m
 
@@ -30,29 +24,26 @@ if st.button("Analyze") and text:
 
     r = model.predict(text)
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
 
     c1.metric("Toxicity", f"{r['toxicity']:.2f}")
     c2.metric("Bias", f"{r['bias']:.2f}")
     c3.metric("Risk", f"{r['risk']:.2f}")
-    c4.metric("Framing", f"{r['framing_bias']:.2f}")
+    c4.metric("Framing", f"{r['framing']:.2f}")
+    c5.metric("Sentiment", f"{r['sentiment']:.2f}")
 
-    st.subheader("Explainability Layer")
-
-    for word, score in model.explain(text):
-        color = "red" if score < 0 else "green"
-        st.markdown(f"<span style='color:{color}; font-size:18px'>{word}</span>", unsafe_allow_html=True)
+    st.success("Analysis complete (calibrated model)")
 
 # -------------------------
-# LIVE NEWS ANALYSIS
+# LIVE FEED
 # -------------------------
-st.header("🌍 Live Media Bias Scan")
+st.header("🌍 Live News Intelligence")
 
 def get_news():
     feed = feedparser.parse("https://news.google.com/rss")
-    return [x.title for x in feed.entries[:6]]
+    return [x.title for x in feed.entries[:5]]
 
-if st.button("Run Live Scan"):
+if st.button("Run Scan"):
 
     for item in get_news():
 
