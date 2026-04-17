@@ -12,10 +12,16 @@ def get_news():
         feed = feedparser.parse(url)
 
         for entry in feed.entries[:3]:
+
+            # SAFE extraction
+            title = entry.get("title", "No title available")
+            summary = entry.get("summary", "No summary available")
+            link = entry.get("link", "#")
+
             articles.append({
-                "title": entry.title,
-                "summary": entry.summary,
-                "link": entry.link
+                "title": title,
+                "summary": summary,
+                "link": link
             })
 
     return articles[:6]
