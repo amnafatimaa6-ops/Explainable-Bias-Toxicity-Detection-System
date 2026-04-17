@@ -1,16 +1,23 @@
 import pandas as pd
+import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from textblob import TextBlob
 
-class BiasModel:
+from nltk.sentiment import SentimentIntensityAnalyzer
+import nltk
+
+nltk.download('vader_lexicon')
+
+class BiasModelV2:
+
     def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=5000, stop_words="english")
+        self.vectorizer = TfidfVectorizer(max_features=6000, stop_words="english")
         self.models = {}
+        self.sia = SentimentIntensityAnalyzer()
 
     # -------------------------
-    # TRAINING DATA (SMALL BUT STABLE)
+    # DATA
     # -------------------------
     def load_data(self):
         data = {
@@ -28,84 +35,77 @@ class BiasModel:
                 "This policy is unfair and biased",
                 "Citizens demand justice and equality"
             ],
-            "toxicity": [0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0],
-            "identity_attack": [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
-            "insult": [0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0]
+            "toxicity": [0,1,0,1,1,0,1,0,1,0,1,0],
+            "identity_attack": [0,0,0,1,1,0,0,0,0,0,0,0],
+            "insult": [0,1,0,1,0,0,1,0,0,0,1,0]
         }
 
         df = pd.DataFrame(data)
-
         df["toxicity_label"] = df["toxicity"]
-        df["bias_label"] = (
-            (df["identity_attack"] == 1) | (df["insult"] == 1)
-        ).astype(int)
-
+        df["bias_label"] = ((df["identity_attack"]==1) | (df["insult"]==1)).astype(int)
         return df
 
     # -------------------------
-    # TRAIN MODEL
+    # TRAIN
     # -------------------------
     def train(self):
         df = self.load_data()
-
         X = self.vectorizer.fit_transform(df["text"])
 
         for target in ["toxicity_label", "bias_label"]:
             y = df[target]
-
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.2, random_state=42
-            )
-
             model = LogisticRegression(max_iter=300)
-            model.fit(X_train, y_train)
-
+            model.fit(X, y)
             self.models[target] = model
 
-        print("Model trained ✔")
+        print("V2 Model trained ✔")
 
     # -------------------------
-    # HYBRID RULE ENGINE
+    # SENTIMENT LAYER (NEW)
     # -------------------------
-    def hybrid_risk_score(self, text):
+    def sentiment_score(self, text):
+        score = self.sia.polarity_scores(text)["compound"]
+        return abs(score)
+
+    # -------------------------
+    # ADVANCED RISK ENGINE (FIXES ZERO OUTPUTS)
+    # -------------------------
+    def hybrid_risk(self, text):
 
         text = text.lower()
 
-        risk_words = {
-            "war": 0.4,
-            "violence": 0.5,
-            "kill": 0.7,
-            "murder": 0.8,
-            "attack": 0.5,
-            "hate": 0.7,
-            "racist": 0.9,
-            "conflict": 0.3,
+        strong_bias_words = {
             "women": 0.2,
-            "government": 0.1,
-            "policy": 0.1
+            "men": 0.1,
+            "government": 0.2,
+            "leader": 0.3,
+            "illegal": 0.5,
+            "immigrant": 0.4
+        }
+
+        toxicity_words = {
+            "hate": 0.7,
+            "stupid": 0.6,
+            "idiot": 0.6,
+            "kill": 0.8,
+            "violent": 0.7
         }
 
         score = 0
-        for w, val in risk_words.items():
-            if w in text:
-                score += val
 
+        for w,v in strong_bias_words.items():
+            if w in text:
+                score += v
+
+        for w,v in toxicity_words.items():
+            if w in text:
+                score += v
+
+        # normalization (IMPORTANT)
         return min(score, 1.0)
 
     # -------------------------
-    # SEMANTIC LAYER (FIXES 0.00 PROBLEM)
-    # -------------------------
-    def semantic_score(self, text):
-
-        blob = TextBlob(text)
-
-        polarity = blob.sentiment.polarity
-        subjectivity = blob.sentiment.subjectivity
-
-        return abs(polarity) * (1 - subjectivity)
-
-    # -------------------------
-    # FINAL PREDICTION (REAL INTELLIGENCE FUSION)
+    # PREDICT (REAL FUSION ENGINE)
     # -------------------------
     def predict(self, text):
 
@@ -114,18 +114,18 @@ class BiasModel:
         ml_toxic = self.models["toxicity_label"].predict_proba(vec)[0][1]
         ml_bias = self.models["bias_label"].predict_proba(vec)[0][1]
 
-        risk = self.hybrid_risk_score(text)
-        semantic = self.semantic_score(text)
+        risk = self.hybrid_risk(text)
+        sentiment = self.sentiment_score(text)
 
-        final_toxic = (ml_toxic * 0.5) + (risk * 0.3) + (semantic * 0.2)
-        final_bias = (ml_bias * 0.5) + (risk * 0.3) + (semantic * 0.2)
+        # SMART WEIGHTED FUSION
+        toxicity = (ml_toxic*0.45) + (risk*0.35) + (sentiment*0.2)
+        bias = (ml_bias*0.5) + (risk*0.4) + (sentiment*0.1)
 
         return {
-            "toxicity": round(float(final_toxic), 3),
-            "bias_signal": round(float(final_bias), 3),
-            "ml_toxicity": round(float(ml_toxic), 3),
-            "risk_layer": round(float(risk), 3),
-            "semantic": round(float(semantic), 3)
+            "toxicity": float(round(toxicity,3)),
+            "bias": float(round(bias,3)),
+            "risk": float(round(risk,3)),
+            "sentiment": float(round(sentiment,3))
         }
 
     # -------------------------
@@ -134,19 +134,17 @@ class BiasModel:
     def explain(self, text):
 
         vec = self.vectorizer.transform([text])
-
-        feature_names = self.vectorizer.get_feature_names_out()
-        indices = vec.nonzero()[1]
-        values = vec.data
+        features = self.vectorizer.get_feature_names_out()
 
         model = self.models["toxicity_label"]
         coefs = model.coef_[0]
 
+        indices = vec.nonzero()[1]
+        values = vec.data
+
         scores = []
 
-        for idx, tfidf_val in zip(indices, values):
-            word = feature_names[idx]
-            score = tfidf_val * coefs[idx]
-            scores.append((word, score))
+        for i,v in zip(indices, values):
+            scores.append((features[i], v * coefs[i]))
 
-        return sorted(scores, key=lambda x: abs(x[1]), reverse=True)[:10]
+        return sorted(scores, key=lambda x: abs(x[1]), reverse=True)[:8]
