@@ -2,6 +2,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
+from textblob import TextBlob
 
 class BiasModel:
     def __init__(self):
@@ -9,12 +10,12 @@ class BiasModel:
         self.models = {}
 
     # -------------------------
-    # TRAINING DATA
+    # TRAINING DATA (SMALL BUT STABLE)
     # -------------------------
     def load_data(self):
         data = {
             "text": [
-                "I love this idea, it's amazing",
+                "I love this idea",
                 "This is terrible and disgusting",
                 "Government supports education reform",
                 "This group is dangerous and bad",
@@ -23,11 +24,13 @@ class BiasModel:
                 "He is a stupid and useless person",
                 "Education improves society",
                 "War and violence are increasing",
-                "This is a wonderful achievement"
+                "This is a wonderful achievement",
+                "This policy is unfair and biased",
+                "Citizens demand justice and equality"
             ],
-            "toxicity": [0, 1, 0, 1, 1, 0, 1, 0, 1, 0],
-            "identity_attack": [0, 0, 0, 1, 1, 0, 0, 0, 0, 0],
-            "insult": [0, 1, 0, 1, 0, 0, 1, 0, 0, 0]
+            "toxicity": [0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0],
+            "identity_attack": [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
+            "insult": [0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0]
         }
 
         df = pd.DataFrame(data)
@@ -62,9 +65,10 @@ class BiasModel:
         print("Model trained ✔")
 
     # -------------------------
-    # RISK ENGINE
+    # HYBRID RULE ENGINE
     # -------------------------
     def hybrid_risk_score(self, text):
+
         text = text.lower()
 
         risk_words = {
@@ -77,8 +81,8 @@ class BiasModel:
             "racist": 0.9,
             "conflict": 0.3,
             "women": 0.2,
-            "men": 0.1,
-            "government": 0.1
+            "government": 0.1,
+            "policy": 0.1
         }
 
         score = 0
@@ -89,30 +93,46 @@ class BiasModel:
         return min(score, 1.0)
 
     # -------------------------
-    # PREDICTION (SAFE + STABLE)
+    # SEMANTIC LAYER (FIXES 0.00 PROBLEM)
+    # -------------------------
+    def semantic_score(self, text):
+
+        blob = TextBlob(text)
+
+        polarity = blob.sentiment.polarity
+        subjectivity = blob.sentiment.subjectivity
+
+        return abs(polarity) * (1 - subjectivity)
+
+    # -------------------------
+    # FINAL PREDICTION (REAL INTELLIGENCE FUSION)
     # -------------------------
     def predict(self, text):
+
         vec = self.vectorizer.transform([text])
 
         ml_toxic = self.models["toxicity_label"].predict_proba(vec)[0][1]
         ml_bias = self.models["bias_label"].predict_proba(vec)[0][1]
 
         risk = self.hybrid_risk_score(text)
+        semantic = self.semantic_score(text)
 
-        final_toxic = (ml_toxic * 0.6) + (risk * 0.4)
-        final_bias = (ml_bias * 0.6) + (risk * 0.4)
+        final_toxic = (ml_toxic * 0.5) + (risk * 0.3) + (semantic * 0.2)
+        final_bias = (ml_bias * 0.5) + (risk * 0.3) + (semantic * 0.2)
 
         return {
             "toxicity": round(float(final_toxic), 3),
             "bias_signal": round(float(final_bias), 3),
             "ml_toxicity": round(float(ml_toxic), 3),
-            "risk_layer": round(float(risk), 3)
+            "risk_layer": round(float(risk), 3),
+            "semantic": round(float(semantic), 3)
         }
 
     # -------------------------
     # EXPLAINABILITY
     # -------------------------
     def explain(self, text):
+
         vec = self.vectorizer.transform([text])
 
         feature_names = self.vectorizer.get_feature_names_out()
