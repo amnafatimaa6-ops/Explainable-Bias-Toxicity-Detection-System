@@ -2,15 +2,22 @@ import streamlit as st
 import feedparser
 from model import EthicsRadarStable
 
-st.set_page_config(page_title="Ethics Radar Stable", layout="wide")
+st.set_page_config(page_title="AI Ethics Radar", layout="wide")
 
-st.title("🧠 AI Ethics Radar — Stable Version")
+st.title("🧠 AI Ethics Radar — Stable Research System")
 
-# IMPORTANT FIX: no fragile cache first run
+# -------------------------
+# LOAD MODEL (SAFE)
+# -------------------------
 model = EthicsRadarStable()
-model.train()
 
-st.header("🔍 Text Analysis")
+with st.spinner("Training AI model..."):
+    model.train()
+
+# -------------------------
+# INPUT SECTION
+# -------------------------
+st.header("🔍 Analyze Text")
 
 text = st.text_area("Enter text")
 
@@ -28,23 +35,24 @@ if st.button("Analyze") and text:
         col5.metric("Sentiment", f"{r['sentiment']:.2f}")
 
     except Exception as e:
-        st.error(f"Model error: {e}")
+        st.error("Prediction error")
+        st.exception(e)
 
 # -------------------------
-# LIVE FEED SAFE MODE
+# LIVE NEWS
 # -------------------------
-st.header("🌍 Live Feed")
+st.header("🌍 Live News Scan")
 
-def news():
+def get_news():
     try:
         feed = feedparser.parse("https://news.google.com/rss")
         return [x.title for x in feed.entries[:5]]
     except:
         return []
 
-if st.button("Run Live Scan"):
+if st.button("Run Scan"):
 
-    for item in news():
+    for item in get_news():
 
         r = model.predict(item)
 
