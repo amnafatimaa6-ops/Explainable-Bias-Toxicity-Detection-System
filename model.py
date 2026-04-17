@@ -8,25 +8,20 @@ class BiasModel:
         self.vectorizer = TfidfVectorizer(max_features=3000, stop_words="english")
         self.models = {}
 
-    # -------------------------
-    # OFFLINE DATA (NO INTERNET)
-    # -------------------------
     def load_data(self):
 
         data = {
             "text": [
-                "I love this idea, it's amazing",
-                "This is terrible and stupid",
-                "Government should support education",
-                "You are a bad person",
-                "This is very helpful and kind",
-                "I hate this completely",
-                "Education is important for women",
-                "This group is dangerous and bad"
+                "I love this idea",
+                "This is terrible and disgusting",
+                "Government supports education policy",
+                "This group is dangerous and bad",
+                "Healthcare improves lives",
+                "People are angry about decision"
             ],
-            "toxicity": [0, 1, 0, 1, 0, 1, 0, 1],
-            "identity_attack": [0, 0, 0, 1, 0, 1, 0, 1],
-            "insult": [0, 1, 0, 1, 0, 1, 0, 1]
+            "toxicity": [0, 1, 0, 1, 0, 1],
+            "identity_attack": [0, 0, 0, 1, 0, 0],
+            "insult": [0, 1, 0, 1, 0, 0]
         }
 
         df = pd.DataFrame(data)
@@ -38,9 +33,6 @@ class BiasModel:
 
         return df
 
-    # -------------------------
-    # TRAIN MODEL
-    # -------------------------
     def train(self):
 
         df = self.load_data()
@@ -59,13 +51,7 @@ class BiasModel:
 
             self.models[target] = model
 
-        print("Offline model trained ✔")
-
-    # -------------------------
-    # PREDICT
-    # -------------------------
     def predict(self, text):
-
         vec = self.vectorizer.transform([text])
 
         return {
@@ -73,11 +59,7 @@ class BiasModel:
             "bias_signal": int(self.models["bias_label"].predict(vec)[0])
         }
 
-    # -------------------------
-    # EXPLAINABILITY
-    # -------------------------
     def explain(self, text, model_name="toxicity_label"):
-
         vec = self.vectorizer.transform([text])
 
         feature_names = self.vectorizer.get_feature_names_out()
@@ -94,6 +76,4 @@ class BiasModel:
             score = tfidf_val * coefs[idx]
             scores.append((word, score))
 
-        scores.sort(key=lambda x: abs(x[1]), reverse=True)
-
-        return scores[:10]
+        return sorted(scores, key=lambda x: abs(x[1]), reverse=True)[:10]
