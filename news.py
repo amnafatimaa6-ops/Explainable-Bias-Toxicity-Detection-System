@@ -13,8 +13,8 @@ def get_news():
 
         for entry in feed.entries[:3]:
             articles.append({
-                "title": entry.get("title", "No title"),
-                "summary": entry.get("summary", "No summary available"),
+                "title": entry.get("title", ""),
+                "summary": entry.get("summary", ""),
                 "link": entry.get("link", "#")
             })
 
