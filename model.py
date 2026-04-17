@@ -1,6 +1,7 @@
 from transformers import pipeline
+from sentence_transformers import SentenceTransformer, util
 
-# ML models
+# ---------------- ML MODELS ----------------
 toxicity_model = pipeline(
     "text-classification",
     model="unitary/toxic-bert"
@@ -8,60 +9,61 @@ toxicity_model = pipeline(
 
 sentiment_model = pipeline("sentiment-analysis")
 
-# ---------------- RULES ----------------
-bias_patterns = ["women are", "men are", "they are", "all", "always", "never"]
-target_groups = ["women", "men", "immigrants", "muslims", "christians", "people"]
+# ---------------- SEMANTIC MODEL ----------------
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-violence_keywords = [
-    "killed", "murder", "attack", "bomb", "shooting",
-    "war", "violence", "assault", "arrest"
+# reference bias examples (this is your "knowledge base")
+bias_examples = [
+    "women are not good leaders",
+    "men are better at engineering",
+    "immigrants are dangerous",
+    "people of this group are inferior",
+    "certain races are smarter than others"
 ]
 
-news_keywords = [
-    "said", "reported", "according to", "bbc", "cnn",
-    "official", "statement", "announced", "report"
-]
+bias_vectors = embedder.encode(bias_examples, convert_to_tensor=True)
 
-# ---------------- HELPERS ----------------
-def is_news(text):
-    text_lower = text.lower()
-    return any(k in text_lower for k in news_keywords)
+# ---------------- CORE FUNCTION ----------------
+def semantic_bias_score(text):
+    text_vec = embedder.encode(text, convert_to_tensor=True)
+    scores = util.cos_sim(text_vec, bias_vectors)
+    return float(scores.max())
 
 
 def analyze_text(text):
     text_lower = text.lower()
 
+    # ML outputs
     tox = toxicity_model(text)[0]
     sentiment = sentiment_model(text)[0]
 
     tox_score = float(tox["score"])
     sentiment_label = sentiment["label"]
 
-    # feature detection
-    bias_hits = sum(1 for p in bias_patterns if p in text_lower)
-    violence_hits = sum(1 for v in violence_keywords if v in text_lower)
-    news_hits = sum(1 for n in news_keywords if n in text_lower)
+    # semantic bias score (🔥 MAIN UPGRADE)
+    bias_score = semantic_bias_score(text)
 
-    targets = [t for t in target_groups if t in text_lower]
+    # simple violence detection (still useful)
+    violence_keywords = ["killed", "murder", "attack", "bomb", "war", "shooting"]
+    violence_score = sum(k in text_lower for k in violence_keywords) / 3
 
-    # normalize scores
-    bias_score = min(bias_hits / 3, 1.0)
-    violence_score = min(violence_hits / 3, 1.0)
-    news_score = min(news_hits / 3, 1.0)
+    # news detection
+    news_keywords = ["said", "reported", "according to", "bbc", "cnn"]
+    news_score = sum(k in text_lower for k in news_keywords) / 3
 
     # ---------------- DECISION ENGINE ----------------
 
-    if bias_score > 0.3 and targets:
+    if bias_score > 0.55:
         category = "Bias / Stereotype"
-        explanation = f"Generalized statement about {', '.join(targets)}."
+        explanation = "Semantically similar to known biased statements."
 
     elif violence_score > 0.3:
         category = "Violence / Crime Context"
-        explanation = "Mentions violence or harmful/criminal events."
+        explanation = "Mentions violent or harmful real-world events."
 
     elif news_score > 0.4:
         category = "News / Reporting"
-        explanation = "Informational or factual reporting content."
+        explanation = "Informational reporting content."
 
     elif tox_score > 0.7:
         category = "Toxic Language"
@@ -69,13 +71,12 @@ def analyze_text(text):
 
     elif sentiment_label == "NEGATIVE":
         category = "Negative Opinion"
-        explanation = "Negative sentiment but not bias or toxicity."
+        explanation = "Negative sentiment but not necessarily bias."
 
     else:
         category = "Neutral"
-        explanation = "No harmful or biased patterns detected."
+        explanation = "No harmful or biased meaning detected."
 
-    # ---------------- FINAL OUTPUT (FIXED SCHEMA) ----------------
     return {
         "category": category,
         "toxicity": round(tox_score, 3),
@@ -83,16 +84,9 @@ def analyze_text(text):
         "violence_score": round(violence_score, 3),
         "news_score": round(news_score, 3),
         "sentiment": sentiment_label,
-        "targets": targets,
         "explanation": explanation
     }
 
 
-def highlight_text(text, words):
-    if not words:
-        return text
-
-    for w in words:
-        text = text.replace(w, f"**{w}**")
-
+def highlight_text(text):
     return text
