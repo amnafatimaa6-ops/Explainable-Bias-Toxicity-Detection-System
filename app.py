@@ -6,52 +6,64 @@ from sentence_transformers import SentenceTransformer, util
 
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-st.set_page_config(page_title="Trust & Safety AI v5.1", layout="centered")
+st.set_page_config(page_title="AI Trust Safety v5.2", layout="centered")
 
-st.title("🧠 AI Trust & Safety System v5.1")
+st.title("🧠 AI Ethics Radar v5.2")
 
-# ---------------- ANALYSIS ----------------
+# ---------------- INPUT ----------------
 text = st.text_area("Enter text")
 
-if st.button("Analyze"):
-    if text.strip():
+# ---------------- ANALYSIS ----------------
+if st.button("Analyze") and text.strip():
 
-        result = analyze_text(text)
+    result = analyze_text(text)
 
-        st.write("## 🧠 Risk Overview")
+    st.subheader("🧠 Risk Overview")
+    st.write("Bias Risk:", risk_level(result["bias_score"]))
+    st.write("Toxicity Risk:", risk_level(result["toxicity"]))
 
-        st.write("Bias Risk:", risk_level(result["bias_score"]))
-        st.write("Toxicity Risk:", risk_level(result["toxicity"]))
+    st.subheader("📊 Raw Metrics")
+    st.json(result)
 
-        st.write("### 📊 Raw Metrics")
-        st.json(result)
+    st.subheader("🔍 Explanation")
+    st.info(explain(result, text))
 
-        st.write("### 🔍 Explanation")
-        st.info(explain(result, text))
-
-# ---------------- NEWS FILTERING ----------------
-st.subheader("🌍 Relevant News")
+# ---------------- NEWS ----------------
+st.subheader("🌍 News Intelligence Layer")
 
 news = get_news()
 
 if text.strip():
+
     input_vec = embedder.encode(text, convert_to_tensor=True)
 
-    filtered = []
+    scored_news = []
 
     for n in news:
-        vec = embedder.encode(n["title"], convert_to_tensor=True)
+        full_text = n["title"] + " " + n["summary"]
+
+        vec = embedder.encode(full_text, convert_to_tensor=True)
         score = util.cos_sim(input_vec, vec).item()
 
-        if score > 0.25:
+        # 🔥 FIX: NEVER EMPTY SCREEN
+        if score > 0.12:
             n["relevance"] = round(score, 3)
-            filtered.append(n)
+            scored_news.append(n)
 
-    filtered = sorted(filtered, key=lambda x: x["relevance"], reverse=True)
+    # fallback guarantee
+    if len(scored_news) == 0:
+        scored_news = news[:3]
+        for n in scored_news:
+            n["relevance"] = 0.0
 
-    for n in filtered:
+    scored_news = sorted(scored_news, key=lambda x: x["relevance"], reverse=True)
+
+    for n in scored_news:
         st.write("## 🧾", n["title"])
         st.write(n["summary"])
         st.write("Relevance:", n["relevance"])
         st.write("[Read]", n["link"])
         st.divider()
+
+else:
+    st.info("Type text to activate news intelligence layer")
