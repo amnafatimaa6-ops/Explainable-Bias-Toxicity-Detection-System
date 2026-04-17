@@ -6,7 +6,7 @@ toxicity_model = pipeline("text-classification", model="unitary/toxic-bert")
 sentiment_model = pipeline("sentiment-analysis")
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# ---------------- BIAS DATABASE ----------------
+# ---------------- BIAS DATA ----------------
 bias_db = {
     "gender": [
         "women are not good leaders",
@@ -16,10 +16,6 @@ bias_db = {
     "race": [
         "some races are superior",
         "certain ethnic groups are less intelligent"
-    ],
-    "religion": [
-        "this religion is violent",
-        "people of that faith are dangerous"
     ]
 }
 
@@ -27,11 +23,12 @@ bias_texts = []
 bias_labels = []
 
 for label, items in bias_db.items():
-    for i in items:
-        bias_texts.append(i)
+    for item in items:
+        bias_texts.append(item)
         bias_labels.append(label)
 
 bias_embeddings = embedder.encode(bias_texts, convert_to_tensor=True)
+
 
 # ---------------- INTENT ENGINE ----------------
 def detect_intent(text):
@@ -41,9 +38,7 @@ def detect_intent(text):
         return "comparison"
     if "all" in t or "every" in t:
         return "generalization"
-    if "are" in t:
-        return "assertion"
-    return "neutral"
+    return "assertion"
 
 
 def amplify_bias(score, text):
@@ -59,7 +54,7 @@ def amplify_bias(score, text):
     return min(score, 1.0)
 
 
-# ---------------- SEMANTIC MATCH ----------------
+# ---------------- SEMANTIC BIAS ----------------
 def semantic_bias(text):
     vec = embedder.encode(text, convert_to_tensor=True)
     scores = util.cos_sim(vec, bias_embeddings)[0]
@@ -84,10 +79,8 @@ def analyze_text(text):
     text_l = text.lower()
 
     violence_words = ["kill", "murder", "attack", "bomb", "war"]
-    news_words = ["said", "reported", "according", "bbc", "cnn"]
 
     violence = sum(w in text_l for w in violence_words) / 3
-    news = sum(w in text_l for w in news_words) / 3
 
     return {
         "text": text,
@@ -96,6 +89,5 @@ def analyze_text(text):
         "bias_score": bias_score,
         "bias_type": raw_bias["label"],
         "bias_match": raw_bias["matched"],
-        "violence_score": violence,
-        "news_score": news
+        "violence_score": violence
     }
