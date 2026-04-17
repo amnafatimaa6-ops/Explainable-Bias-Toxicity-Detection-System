@@ -6,7 +6,7 @@ from sentence_transformers import SentenceTransformer, util
 
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-st.set_page_config(page_title="AI Trust Safety v5.2", layout="centered")
+st.set_page_config(page_title="AI Ethics Radar v5.2", layout="centered")
 
 st.title("🧠 AI Ethics Radar v5.2")
 
@@ -45,12 +45,12 @@ if text.strip():
         vec = embedder.encode(full_text, convert_to_tensor=True)
         score = util.cos_sim(input_vec, vec).item()
 
-        # 🔥 FIX: NEVER EMPTY SCREEN
+        # SAFE THRESHOLD (prevents empty UI)
         if score > 0.12:
             n["relevance"] = round(score, 3)
             scored_news.append(n)
 
-    # fallback guarantee
+    # fallback (IMPORTANT FIX)
     if len(scored_news) == 0:
         scored_news = news[:3]
         for n in scored_news:
@@ -66,4 +66,4 @@ if text.strip():
         st.divider()
 
 else:
-    st.info("Type text to activate news intelligence layer")
+    st.info("Type text above to activate AI analysis + news intelligence")
