@@ -1,111 +1,123 @@
 import pandas as pd
 import numpy as np
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-
 from nltk.sentiment import SentimentIntensityAnalyzer
 import nltk
 
-nltk.download('vader_lexicon')
+nltk.download("vader_lexicon")
 
-class BiasModelV2:
+
+class EthicsRadarResearch:
 
     def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=6000, stop_words="english")
+        self.vectorizer = TfidfVectorizer(max_features=8000, stop_words="english")
         self.models = {}
         self.sia = SentimentIntensityAnalyzer()
 
     # -------------------------
-    # DATA
+    # DATA (SMALL BUT CONTROLLED BASELINE)
     # -------------------------
     def load_data(self):
-        data = {
+        df = pd.DataFrame({
             "text": [
-                "I love this idea",
-                "This is terrible and disgusting",
-                "Government supports education reform",
-                "This group is dangerous and bad",
+                "I love this system",
+                "This is horrible and disgusting",
+                "Government improves education",
+                "Group is dangerous and bad",
                 "Women are not good leaders",
                 "People are kind and helpful",
-                "He is a stupid and useless person",
+                "He is stupid and useless",
                 "Education improves society",
-                "War and violence are increasing",
-                "This is a wonderful achievement",
-                "This policy is unfair and biased",
-                "Citizens demand justice and equality"
+                "Violence and war are rising",
+                "This is a great achievement",
+                "Policy is unfair and biased",
+                "Citizens demand justice"
             ],
             "toxicity": [0,1,0,1,1,0,1,0,1,0,1,0],
             "identity_attack": [0,0,0,1,1,0,0,0,0,0,0,0],
             "insult": [0,1,0,1,0,0,1,0,0,0,1,0]
-        }
+        })
 
-        df = pd.DataFrame(data)
         df["toxicity_label"] = df["toxicity"]
-        df["bias_label"] = ((df["identity_attack"]==1) | (df["insult"]==1)).astype(int)
+        df["bias_label"] = (
+            (df["identity_attack"] == 1) |
+            (df["insult"] == 1)
+        ).astype(int)
+
         return df
 
     # -------------------------
-    # TRAIN
+    # TRAINING
     # -------------------------
     def train(self):
         df = self.load_data()
+
         X = self.vectorizer.fit_transform(df["text"])
 
         for target in ["toxicity_label", "bias_label"]:
             y = df[target]
-            model = LogisticRegression(max_iter=300)
+
+            model = LogisticRegression(max_iter=400)
             model.fit(X, y)
+
             self.models[target] = model
 
-        print("V2 Model trained ✔")
+        print("✔ Research model trained")
 
     # -------------------------
-    # SENTIMENT LAYER (NEW)
+    # SENTIMENT LAYER
     # -------------------------
-    def sentiment_score(self, text):
-        score = self.sia.polarity_scores(text)["compound"]
-        return abs(score)
+    def sentiment(self, text):
+        s = self.sia.polarity_scores(text)
+        return abs(s["compound"])
 
     # -------------------------
-    # ADVANCED RISK ENGINE (FIXES ZERO OUTPUTS)
+    # FRAMING BIAS DETECTOR (KEY RESEARCH CONTRIBUTION)
     # -------------------------
-    def hybrid_risk(self, text):
+    def framing_bias(self, text):
 
-        text = text.lower()
-
-        strong_bias_words = {
-            "women": 0.2,
-            "men": 0.1,
-            "government": 0.2,
-            "leader": 0.3,
-            "illegal": 0.5,
-            "immigrant": 0.4
-        }
-
-        toxicity_words = {
-            "hate": 0.7,
-            "stupid": 0.6,
-            "idiot": 0.6,
-            "kill": 0.8,
-            "violent": 0.7
+        patterns = {
+            "generalization": ["all", "always", "never", "every", "most"],
+            "negative framing": ["are bad", "are dangerous", "are inferior"],
+            "dehumanization": ["animals", "parasites", "threat"]
         }
 
         score = 0
+        t = text.lower()
 
-        for w,v in strong_bias_words.items():
-            if w in text:
-                score += v
+        for group in patterns.values():
+            for p in group:
+                if p in t:
+                    score += 0.25
 
-        for w,v in toxicity_words.items():
-            if w in text:
-                score += v
-
-        # normalization (IMPORTANT)
         return min(score, 1.0)
 
     # -------------------------
-    # PREDICT (REAL FUSION ENGINE)
+    # DOMAIN RISK ENGINE
+    # -------------------------
+    def risk_engine(self, text):
+
+        keywords = {
+            "war": 0.4,
+            "violence": 0.5,
+            "hate": 0.6,
+            "kill": 0.7,
+            "racist": 0.9,
+            "government": 0.1,
+            "policy": 0.1,
+            "women": 0.15,
+            "men": 0.1
+        }
+
+        t = text.lower()
+        score = sum(v for k, v in keywords.items() if k in t)
+
+        return min(score, 1.0)
+
+    # -------------------------
+    # FINAL FUSION MODEL (RESEARCH FORMULA)
     # -------------------------
     def predict(self, text):
 
@@ -114,22 +126,34 @@ class BiasModelV2:
         ml_toxic = self.models["toxicity_label"].predict_proba(vec)[0][1]
         ml_bias = self.models["bias_label"].predict_proba(vec)[0][1]
 
-        risk = self.hybrid_risk(text)
-        sentiment = self.sentiment_score(text)
+        risk = self.risk_engine(text)
+        sentiment = self.sentiment(text)
+        framing = self.framing_bias(text)
 
-        # SMART WEIGHTED FUSION
-        toxicity = (ml_toxic*0.45) + (risk*0.35) + (sentiment*0.2)
-        bias = (ml_bias*0.5) + (risk*0.4) + (sentiment*0.1)
+        # RESEARCH-DEFINED WEIGHTING FUNCTION
+        toxicity = (
+            0.30 * ml_toxic +
+            0.25 * risk +
+            0.20 * sentiment +
+            0.25 * framing
+        )
+
+        bias = (
+            0.35 * ml_bias +
+            0.30 * framing +
+            0.20 * risk +
+            0.15 * sentiment
+        )
 
         return {
-            "toxicity": float(round(toxicity,3)),
-            "bias": float(round(bias,3)),
-            "risk": float(round(risk,3)),
-            "sentiment": float(round(sentiment,3))
+            "toxicity": round(min(max(toxicity, 0), 1), 3),
+            "bias": round(min(max(bias, 0), 1), 3),
+            "risk": round(risk, 3),
+            "framing_bias": round(framing, 3)
         }
 
     # -------------------------
-    # EXPLAINABILITY
+    # EXPLAINABILITY LAYER
     # -------------------------
     def explain(self, text):
 
@@ -139,12 +163,9 @@ class BiasModelV2:
         model = self.models["toxicity_label"]
         coefs = model.coef_[0]
 
-        indices = vec.nonzero()[1]
-        values = vec.data
-
         scores = []
 
-        for i,v in zip(indices, values):
-            scores.append((features[i], v * coefs[i]))
+        for i in vec.nonzero()[1]:
+            scores.append((features[i], coefs[i]))
 
-        return sorted(scores, key=lambda x: abs(x[1]), reverse=True)[:8]
+        return sorted(scores, key=lambda x: abs(x[1]), reverse=True)[:10]
