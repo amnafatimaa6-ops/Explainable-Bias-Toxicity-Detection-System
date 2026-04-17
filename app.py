@@ -5,12 +5,12 @@ from model import BiasModel
 
 st.set_page_config(page_title="AI Ethics Radar", layout="wide")
 
-st.title("🧠 AI Ethics Radar (Live Intelligence System)")
+st.title("🧠 AI Ethics Radar (Research-Grade System)")
 
-st.write("Detect bias, toxicity, and framing differences in real-world content")
+st.write("Live Reddit + News intelligence with bias & toxicity detection")
 
 # ------------------------
-# MODEL (CACHED)
+# LOAD MODEL
 # ------------------------
 @st.cache_resource
 def load_model():
@@ -21,7 +21,7 @@ def load_model():
 model = load_model()
 
 # ------------------------
-# REDDIT SCRAPER (NO API)
+# REDDIT SCRAPER
 # ------------------------
 def get_reddit():
     try:
@@ -30,7 +30,8 @@ def get_reddit():
         r = requests.get(url, headers=headers, timeout=10)
         data = r.json()
 
-        return [item["data"]["title"] for item in data["data"]["children"][:5]]
+        return [x["data"]["title"] for x in data["data"]["children"][:5]]
+
     except:
         return []
 
@@ -40,14 +41,14 @@ def get_reddit():
 def get_news():
     try:
         feed = feedparser.parse("https://news.google.com/rss")
-        return [e.title for e in feed.entries[:5]]
+        return [x.title for x in feed.entries[:5]]
     except:
         return []
 
 # ------------------------
 # TEXT ANALYSIS
 # ------------------------
-st.header("🔍 Analyze Custom Text")
+st.header("🔍 Analyze Text")
 
 text = st.text_area("Enter text")
 
@@ -55,33 +56,38 @@ if st.button("Analyze") and text:
 
     result = model.predict(text)
 
-    st.subheader("AI Prediction")
+    st.subheader("AI Output")
 
-    st.write(result)
+    st.metric("Toxicity Score", f"{result['toxicity']:.2f}")
+    st.metric("Bias Score", f"{result['bias_signal']:.2f}")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.caption(f"ML Toxicity: {result['ml_toxicity']}")
+
+    with col2:
+        st.caption(f"Risk Layer: {result['risk_layer']}")
 
     st.subheader("Explainability")
 
     for word, score in model.explain(text):
         st.write(f"{word} → {score:.3f}")
 
-    # ⚡ threshold logic (IMPORTANT)
-    if result["toxicity"] > 0.6:
-        st.error("⚠ High Toxicity Detected")
-
     if result["bias_signal"] > 0.6:
-        st.warning("⚠ High Bias Signal Detected")
+        st.error("⚠ Bias detected")
+
+    if result["toxicity"] > 0.6:
+        st.error("⚠ Toxic content detected")
 
 # ------------------------
-# LIVE INTELLIGENCE FEED
+# LIVE FEED
 # ------------------------
 st.header("🌍 Live Intelligence Feed")
 
 if st.button("Run Live Scan"):
 
-    reddit = get_reddit()
-    news = get_news()
-
-    items = [("Reddit", x) for x in reddit] + [("News", x) for x in news]
+    items = [("Reddit", x) for x in get_reddit()] + [("News", x) for x in get_news()]
 
     for source, text in items:
 
@@ -90,19 +96,10 @@ if st.button("Run Live Scan"):
         st.markdown(f"### 🧾 {source}")
         st.write(text)
 
-        col1, col2 = st.columns(2)
+        st.metric("Toxicity", f"{result['toxicity']:.2f}")
+        st.metric("Bias", f"{result['bias_signal']:.2f}")
 
-        with col1:
-            st.metric("Toxicity Score", f"{result['toxicity']:.2f}")
-
-        with col2:
-            st.metric("Bias Score", f"{result['bias_signal']:.2f}")
-
-        # ⚡ intelligence rules (your “wow factor”)
-        if result["bias_signal"] > 0.7:
-            st.error("⚠ Potential framing bias detected")
-
-        if result["toxicity"] > 0.7:
-            st.error("⚠ Toxic language detected")
+        if result["risk_layer"] > 0.6:
+            st.warning("⚠ High contextual risk detected")
 
         st.markdown("---")
