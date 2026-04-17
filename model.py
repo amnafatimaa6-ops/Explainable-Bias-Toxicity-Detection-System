@@ -1,82 +1,72 @@
 from transformers import pipeline
 from sentence_transformers import SentenceTransformer, util
 
-toxicity_model = pipeline("text-classification", model="unitary/toxic-bert")
-sentiment_model = pipeline("sentiment-analysis")
+tox_model = pipeline("text-classification", model="unitary/toxic-bert")
+
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# ---------------- BIAS DATABASE ----------------
-bias_db = {
-    "gender": [
-        "women are not good leaders",
-        "men are better engineers",
-        "women belong in the kitchen"
-    ],
-    "race": [
-        "some races are superior",
-        "certain ethnic groups are less intelligent"
-    ]
+# ---------------- ENTITY SIMULATION ----------------
+entity_keywords = {
+    "person": ["trump", "biden", "elon", "musk"],
+    "place": ["uk", "usa", "india", "pakistan", "israel"],
+    "event": ["war", "election", "trial", "indictment"]
 }
 
-bias_texts = []
-bias_labels = []
+# ---------------- BIAS TYPES ----------------
+bias_patterns = {
+    "gender": ["men are", "women are"],
+    "political": ["government", "president", "party"],
+    "racial": ["race", "ethnic", "people are"]
+}
 
-for label, items in bias_db.items():
-    for item in items:
-        bias_texts.append(item)
-        bias_labels.append(label)
 
-bias_embeddings = embedder.encode(bias_texts, convert_to_tensor=True)
+def detect_bias_type(text):
 
-# ---------------- INTENT ----------------
-def detect_intent(text):
     t = text.lower()
 
-    if "better than" in t or "superior" in t:
-        return "comparison"
-    if "all" in t or "every" in t:
-        return "generalization"
-    return "statement"
+    for k, patterns in bias_patterns.items():
+        for p in patterns:
+            if p in t:
+                return k
+
+    return "none"
 
 
-def amplify_bias(score, text):
-    intent = detect_intent(text)
+def detect_entities(text):
 
-    if intent == "generalization":
-        score *= 1.4
-    elif intent == "comparison":
-        score *= 1.3
+    t = text.lower()
 
-    return min(score, 1.0)
+    found = []
 
+    for etype, words in entity_keywords.items():
+        for w in words:
+            if w in t:
+                found.append((etype, w))
 
-# ---------------- BIAS MATCH ----------------
-def semantic_bias(text):
-    vec = embedder.encode(text, convert_to_tensor=True)
-    scores = util.cos_sim(vec, bias_embeddings)[0]
-
-    idx = int(scores.argmax())
-
-    return {
-        "score": float(scores[idx]),
-        "label": bias_labels[idx],
-        "match": bias_texts[idx]
-    }
+    return found
 
 
-# ---------------- MAIN ----------------
 def analyze_text(text):
-    tox = toxicity_model(text)[0]
-    sent = sentiment_model(text)[0]
 
-    raw_bias = semantic_bias(text)
-    bias_score = amplify_bias(raw_bias["score"], text)
+    tox = tox_model(text)[0]
+
+    bias_type = detect_bias_type(text)
+    entities = detect_entities(text)
+
+    violence_words = ["kill", "attack", "war", "bomb", "murder"]
+    violence_score = sum(w in text.lower() for w in violence_words) / 3
+
+    # ---------------- BIAS SCORE ----------------
+    bias_score = 0.4 if bias_type != "none" else 0.1
+
+    if "better than" in text.lower():
+        bias_score += 0.3
 
     return {
         "text": text,
         "toxicity": float(tox["score"]),
-        "sentiment": sent["label"],
-        "bias_score": bias_score,
-        "bias_type": raw_bias["label"],
-        "bias_match": raw_bias["match"]
+        "bias_score": min(bias_score, 1.0),
+        "bias_type": bias_type,
+        "entities": entities,
+        "violence_score": violence_score
     }
