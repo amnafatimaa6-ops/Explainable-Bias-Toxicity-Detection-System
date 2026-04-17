@@ -8,22 +8,21 @@ class BiasModel:
         self.vectorizer = TfidfVectorizer(max_features=5000, stop_words="english")
         self.models = {}
 
-    # -----------------------------
-    # OFFLINE TRAINING DATA (IMPROVED)
-    # -----------------------------
+    # -------------------------
+    # TRAINING DATA
+    # -------------------------
     def load_data(self):
-
         data = {
             "text": [
-                "I love this idea, it's amazing and helpful",
-                "This is terrible and disgusting behavior",
+                "I love this idea, it's amazing",
+                "This is terrible and disgusting",
                 "Government supports education reform",
-                "This group is dangerous and should be stopped",
+                "This group is dangerous and bad",
                 "Women are not good leaders",
-                "People are kind and supportive",
+                "People are kind and helpful",
                 "He is a stupid and useless person",
-                "Education improves society and future",
-                "Violence and war are spreading fear",
+                "Education improves society",
+                "War and violence are increasing",
                 "This is a wonderful achievement"
             ],
             "toxicity": [0, 1, 0, 1, 1, 0, 1, 0, 1, 0],
@@ -40,11 +39,10 @@ class BiasModel:
 
         return df
 
-    # -----------------------------
+    # -------------------------
     # TRAIN MODEL
-    # -----------------------------
+    # -------------------------
     def train(self):
-
         df = self.load_data()
 
         X = self.vectorizer.fit_transform(df["text"])
@@ -63,12 +61,11 @@ class BiasModel:
 
         print("Model trained ✔")
 
-    # -----------------------------
-    # HYBRID RISK ENGINE (IMPORTANT FIX)
-    # -----------------------------
+    # -------------------------
+    # RISK ENGINE
+    # -------------------------
     def hybrid_risk_score(self, text):
-
-        text_low = text.lower()
+        text = text.lower()
 
         risk_words = {
             "war": 0.4,
@@ -85,18 +82,16 @@ class BiasModel:
         }
 
         score = 0
-
-        for word, weight in risk_words.items():
-            if word in text_low:
-                score += weight
+        for w, val in risk_words.items():
+            if w in text:
+                score += val
 
         return min(score, 1.0)
 
-    # -----------------------------
-    # FINAL PREDICTION (FIXED)
-    # -----------------------------
+    # -------------------------
+    # PREDICTION (SAFE + STABLE)
+    # -------------------------
     def predict(self, text):
-
         vec = self.vectorizer.transform([text])
 
         ml_toxic = self.models["toxicity_label"].predict_proba(vec)[0][1]
@@ -114,18 +109,17 @@ class BiasModel:
             "risk_layer": round(float(risk), 3)
         }
 
-    # -----------------------------
+    # -------------------------
     # EXPLAINABILITY
-    # -----------------------------
-    def explain(self, text, model_name="toxicity_label"):
-
+    # -------------------------
+    def explain(self, text):
         vec = self.vectorizer.transform([text])
 
         feature_names = self.vectorizer.get_feature_names_out()
         indices = vec.nonzero()[1]
         values = vec.data
 
-        model = self.models[model_name]
+        model = self.models["toxicity_label"]
         coefs = model.coef_[0]
 
         scores = []
