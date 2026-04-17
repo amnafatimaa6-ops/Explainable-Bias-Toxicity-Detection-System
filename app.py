@@ -1,15 +1,17 @@
 import streamlit as st
+import requests
+import feedparser
 from model import BiasModel
 
-st.set_page_config(page_title="AI Ethics Monitor", layout="wide")
+st.set_page_config(page_title="AI Ethics Radar", layout="wide")
 
-st.title("🧠 AI Ethics & Bias Intelligence System (Offline Mode)")
+st.title("🧠 AI Ethics Radar (Live Internet Intelligence System)")
 
-st.write("Fully offline AI system for toxicity + bias detection")
+st.write("Detects bias, toxicity, and framing differences across real-world content")
 
-# -------------------------
-# CACHE MODEL
-# -------------------------
+# ------------------------
+# LOAD MODEL
+# ------------------------
 @st.cache_resource
 def load_model():
     m = BiasModel()
@@ -18,10 +20,41 @@ def load_model():
 
 model = load_model()
 
-# -------------------------
+# ------------------------
+# REDDIT SCRAPER (NO API)
+# ------------------------
+def get_reddit_posts():
+    try:
+        url = "https://www.reddit.com/r/news/.json"
+        headers = {"User-agent": "Mozilla/5.0"}
+        res = requests.get(url, headers=headers)
+        data = res.json()
+
+        posts = []
+
+        for item in data["data"]["children"][:5]:
+            post = item["data"]["title"]
+            posts.append(post)
+
+        return posts
+
+    except:
+        return []
+
+# ------------------------
+# NEWS RSS
+# ------------------------
+def get_news():
+    try:
+        feed = feedparser.parse("https://news.google.com/rss")
+        return [e.title for e in feed.entries[:5]]
+    except:
+        return []
+
+# ------------------------
 # TEXT ANALYSIS
-# -------------------------
-st.header("🔍 Analyze Text")
+# ------------------------
+st.header("🔍 Analyze Custom Text")
 
 text = st.text_area("Enter text")
 
@@ -29,36 +62,36 @@ if st.button("Analyze") and text:
 
     result = model.predict(text)
 
-    st.subheader("Prediction")
-
     st.json(result)
 
-    st.subheader("Key Influencing Words")
+    st.subheader("Explainability")
 
-    explanation = model.explain(text, "toxicity_label")
-
-    for word, score in explanation:
+    for word, score in model.explain(text):
         st.write(f"{word} → {score:.3f}")
 
-# -------------------------
-# SIMULATED “LIVE NEWS”
-# -------------------------
-st.header("🌍 Simulated News Feed (Offline)")
+# ------------------------
+# LIVE INTELLIGENCE FEED
+# ------------------------
+st.header("🌍 Live Intelligence Feed (Reddit + News)")
 
-news_samples = [
-    "Government launches new education policy for students",
-    "Violence reported in major city causing concern",
-    "New AI system improves healthcare and safety",
-    "Controversial speech sparks public debate",
-]
+if st.button("Run Live Scan"):
 
-if st.button("Generate News Analysis"):
+    reddit = get_reddit_posts()
+    news = get_news()
 
-    for item in news_samples:
+    all_items = [
+        ("Reddit", x) for x in reddit
+    ] + [
+        ("News", x) for x in news
+    ]
 
-        result = model.predict(item)
+    for source, text in all_items:
 
-        st.markdown("### 📰 " + item)
+        result = model.predict(text)
+
+        st.markdown(f"### 🧾 {source}")
+
+        st.write(text)
 
         col1, col2 = st.columns(2)
 
@@ -67,5 +100,12 @@ if st.button("Generate News Analysis"):
 
         with col2:
             st.metric("Bias Signal", result["bias_signal"])
+
+        # 🔥 DOUBLE STANDARD DETECTOR (KEY FEATURE)
+        if result["toxicity"] == 1 and "government" in text.lower():
+            st.warning("⚠ Possible institutional framing bias detected")
+
+        if result["bias_signal"] == 1:
+            st.error("⚠ Bias language detected")
 
         st.markdown("---")
