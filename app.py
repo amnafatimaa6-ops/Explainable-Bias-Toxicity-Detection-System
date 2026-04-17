@@ -4,9 +4,9 @@ from news import get_news
 
 st.set_page_config(page_title="AI Ethics Radar", layout="centered")
 
-st.title("🧠 AI Ethics Radar — Context Aware System")
+st.title("🧠 AI Ethics Radar — Production Stable")
 
-# ---------------- USER INPUT ----------------
+# ---------------- INPUT ----------------
 st.subheader("🔍 Analyze Text")
 
 text = st.text_area("Enter text")
@@ -20,7 +20,10 @@ if st.button("Analyze"):
         st.write("### 🧠 AI Analysis")
 
         st.write("**Category:**", result["category"])
-        st.write("**Toxicity Score:**", result["toxicity_score"])
+        st.write("**Toxicity Score:**", result["toxicity"])
+        st.write("**Bias Score:**", result["bias_score"])
+        st.write("**Violence Score:**", result["violence_score"])
+        st.write("**News Score:**", result["news_score"])
         st.write("**Sentiment:**", result["sentiment"])
 
         highlighted = highlight_text(text, result["targets"])
@@ -43,8 +46,12 @@ for a in articles:
     result = analyze_text(a["title"])
 
     st.write("### 🔍 AI Analysis")
+
     st.write("**Category:**", result["category"])
-    st.write("**Score:**", result["toxicity_score"])
+    st.write("**Toxicity:**", result["toxicity"])
+    st.write("**Bias:**", result["bias_score"])
+    st.write("**Violence:**", result["violence_score"])
+    st.write("**News:**", result["news_score"])
     st.write("**Explanation:**", result["explanation"])
 
     st.write("[Read full article]", a["link"])
