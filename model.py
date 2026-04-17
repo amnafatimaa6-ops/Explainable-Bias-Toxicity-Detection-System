@@ -5,24 +5,30 @@ from sklearn.model_selection import train_test_split
 
 class BiasModel:
     def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=4000, stop_words="english")
+        self.vectorizer = TfidfVectorizer(max_features=5000, stop_words="english")
         self.models = {}
 
+    # -----------------------------
+    # OFFLINE TRAINING DATA (IMPROVED)
+    # -----------------------------
     def load_data(self):
+
         data = {
             "text": [
-                "I love this idea",
-                "This is terrible and disgusting",
-                "Government supports education policy",
-                "This group is dangerous and bad",
+                "I love this idea, it's amazing and helpful",
+                "This is terrible and disgusting behavior",
+                "Government supports education reform",
+                "This group is dangerous and should be stopped",
                 "Women are not good leaders",
-                "People are amazing and kind",
+                "People are kind and supportive",
                 "He is a stupid and useless person",
-                "Education improves society"
+                "Education improves society and future",
+                "Violence and war are spreading fear",
+                "This is a wonderful achievement"
             ],
-            "toxicity": [0, 1, 0, 1, 1, 0, 1, 0],
-            "identity_attack": [0, 0, 0, 1, 1, 0, 0, 0],
-            "insult": [0, 1, 0, 1, 0, 0, 1, 0]
+            "toxicity": [0, 1, 0, 1, 1, 0, 1, 0, 1, 0],
+            "identity_attack": [0, 0, 0, 1, 1, 0, 0, 0, 0, 0],
+            "insult": [0, 1, 0, 1, 0, 0, 1, 0, 0, 0]
         }
 
         df = pd.DataFrame(data)
@@ -34,7 +40,11 @@ class BiasModel:
 
         return df
 
+    # -----------------------------
+    # TRAIN MODEL
+    # -----------------------------
     def train(self):
+
         df = self.load_data()
 
         X = self.vectorizer.fit_transform(df["text"])
@@ -53,19 +63,62 @@ class BiasModel:
 
         print("Model trained ✔")
 
-    # 🔥 FIXED: probability output (IMPORTANT)
-    def predict(self, text):
-        vec = self.vectorizer.transform([text])
+    # -----------------------------
+    # HYBRID RISK ENGINE (IMPORTANT FIX)
+    # -----------------------------
+    def hybrid_risk_score(self, text):
 
-        toxicity_prob = self.models["toxicity_label"].predict_proba(vec)[0][1]
-        bias_prob = self.models["bias_label"].predict_proba(vec)[0][1]
+        text_low = text.lower()
 
-        return {
-            "toxicity": round(float(toxicity_prob), 3),
-            "bias_signal": round(float(bias_prob), 3)
+        risk_words = {
+            "war": 0.4,
+            "violence": 0.5,
+            "kill": 0.7,
+            "murder": 0.8,
+            "attack": 0.5,
+            "hate": 0.7,
+            "racist": 0.9,
+            "conflict": 0.3,
+            "women": 0.2,
+            "men": 0.1,
+            "government": 0.1
         }
 
+        score = 0
+
+        for word, weight in risk_words.items():
+            if word in text_low:
+                score += weight
+
+        return min(score, 1.0)
+
+    # -----------------------------
+    # FINAL PREDICTION (FIXED)
+    # -----------------------------
+    def predict(self, text):
+
+        vec = self.vectorizer.transform([text])
+
+        ml_toxic = self.models["toxicity_label"].predict_proba(vec)[0][1]
+        ml_bias = self.models["bias_label"].predict_proba(vec)[0][1]
+
+        risk = self.hybrid_risk_score(text)
+
+        final_toxic = (ml_toxic * 0.6) + (risk * 0.4)
+        final_bias = (ml_bias * 0.6) + (risk * 0.4)
+
+        return {
+            "toxicity": round(float(final_toxic), 3),
+            "bias_signal": round(float(final_bias), 3),
+            "ml_toxicity": round(float(ml_toxic), 3),
+            "risk_layer": round(float(risk), 3)
+        }
+
+    # -----------------------------
+    # EXPLAINABILITY
+    # -----------------------------
     def explain(self, text, model_name="toxicity_label"):
+
         vec = self.vectorizer.transform([text])
 
         feature_names = self.vectorizer.get_feature_names_out()
