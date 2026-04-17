@@ -11,11 +11,11 @@ def get_news():
     for f in feeds:
         feed = feedparser.parse(f)
 
-        for e in feed.entries[:3]:
+        for e in feed.entries[:4]:
             articles.append({
                 "title": e.get("title", ""),
                 "summary": e.get("summary", ""),
                 "link": e.get("link", "#")
             })
 
-    return articles[:6]
+    return articles[:8]
