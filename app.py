@@ -21,13 +21,15 @@ if st.button("Analyze"):
 
         st.write("### 🧠 AI Analysis")
         st.write("**Risk Level:**", result["risk_level"])
-        st.write("**Toxicity Score:**", result["toxicity"])
+        st.write("**Toxicity Score:**", result["toxicity_score"])
 
         highlighted = highlight_text(text, result["flagged_words"])
         st.write("**Highlighted Text:**", highlighted)
 
-        st.write("**Explanation:**", result["explanation"])
+        if result["targets"]:
+            st.write("**Detected Target Groups:**", ", ".join(result["targets"]))
 
+        st.write("**Explanation:**", result["explanation"])
 
 # ----------------------------
 # LIVE NEWS SECTION
@@ -40,12 +42,16 @@ for a in articles:
     st.write("## 🧾 News")
 
     st.write("###", a["title"])
-    st.write(a["summary"])
+
+    if a["summary"] != "No summary available":
+        st.write(a["summary"])
 
     result = analyze_text(a["title"])
 
     st.write("### 🔍 AI Analysis")
-    st.json(result)
+    st.write("**Risk Level:**", result["risk_level"])
+    st.write("**Score:**", result["toxicity_score"])
+    st.write("**Explanation:**", result["explanation"])
 
     st.write("[Read full article]", a["link"])
     st.divider()
