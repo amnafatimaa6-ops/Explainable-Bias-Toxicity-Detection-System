@@ -6,85 +6,96 @@ toxicity_model = pipeline("text-classification", model="unitary/toxic-bert")
 sentiment_model = pipeline("sentiment-analysis")
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# ---------------- BIAS KNOWLEDGE BASE ----------------
-bias_database = {
+# ---------------- BIAS DATABASE ----------------
+bias_db = {
     "gender": [
         "women are not good leaders",
         "men are better engineers",
-        "women are less capable in leadership"
+        "women belong in the kitchen"
     ],
     "race": [
-        "some races are superior to others",
+        "some races are superior",
         "certain ethnic groups are less intelligent"
     ],
     "religion": [
         "this religion is violent",
         "people of that faith are dangerous"
-    ],
-    "nationality": [
-        "immigrants are dangerous",
-        "foreigners steal jobs"
     ]
 }
 
 bias_texts = []
 bias_labels = []
 
-for label, examples in bias_database.items():
-    for ex in examples:
-        bias_texts.append(ex)
+for label, items in bias_db.items():
+    for i in items:
+        bias_texts.append(i)
         bias_labels.append(label)
 
 bias_embeddings = embedder.encode(bias_texts, convert_to_tensor=True)
 
+# ---------------- INTENT ENGINE ----------------
+def detect_intent(text):
+    t = text.lower()
 
-# ---------------- SEMANTIC BIAS ----------------
+    if "better than" in t or "superior" in t:
+        return "comparison"
+    if "all" in t or "every" in t:
+        return "generalization"
+    if "are" in t:
+        return "assertion"
+    return "neutral"
+
+
+def amplify_bias(score, text):
+    intent = detect_intent(text)
+
+    if intent == "generalization":
+        score *= 1.4
+    elif intent == "comparison":
+        score *= 1.3
+    elif intent == "assertion":
+        score *= 1.1
+
+    return min(score, 1.0)
+
+
+# ---------------- SEMANTIC MATCH ----------------
 def semantic_bias(text):
     vec = embedder.encode(text, convert_to_tensor=True)
     scores = util.cos_sim(vec, bias_embeddings)[0]
 
-    best_idx = int(scores.argmax())
-    return float(scores[best_idx]), bias_labels[best_idx]
+    idx = int(scores.argmax())
+
+    return {
+        "score": float(scores[idx]),
+        "label": bias_labels[idx],
+        "matched": bias_texts[idx]
+    }
 
 
 # ---------------- MAIN ANALYSIS ----------------
 def analyze_text(text):
-    text_lower = text.lower()
-
     tox = toxicity_model(text)[0]
-    sentiment = sentiment_model(text)[0]
+    sent = sentiment_model(text)[0]
 
-    toxicity = float(tox["score"])
+    raw_bias = semantic_bias(text)
+    bias_score = amplify_bias(raw_bias["score"], text)
 
-    bias_score, bias_type = semantic_bias(text)
+    text_l = text.lower()
 
-    violence_words = ["killed", "murder", "attack", "bomb", "war", "shooting"]
-    news_words = ["said", "reported", "according to", "statement", "bbc", "cnn"]
+    violence_words = ["kill", "murder", "attack", "bomb", "war"]
+    news_words = ["said", "reported", "according", "bbc", "cnn"]
 
-    violence_score = sum(w in text_lower for w in violence_words) / 3
-    news_score = sum(w in text_lower for w in news_words) / 3
-
-    # ---------------- DECISION ENGINE ----------------
-
-    if bias_score > 0.65:
-        category = f"Bias ({bias_type})"
-    elif violence_score > 0.3:
-        category = "Violence / Crime Context"
-    elif news_score > 0.4:
-        category = "News / Reporting"
-    elif toxicity > 0.7:
-        category = "Toxic Language"
-    elif sentiment["label"] == "NEGATIVE":
-        category = "Negative Opinion"
-    else:
-        category = "Neutral"
+    violence = sum(w in text_l for w in violence_words) / 3
+    news = sum(w in text_l for w in news_words) / 3
 
     return {
-        "category": category,
-        "bias_score": round(bias_score, 3),
-        "bias_type": bias_type,
-        "toxicity": round(toxicity, 3),
-        "violence_score": round(violence_score, 3),
-        "news_score": round(news_score, 3),
-        "sentiment": sentiment["label"]
+        "text": text,
+        "toxicity": float(tox["score"]),
+        "sentiment": sent["label"],
+        "bias_score": bias_score,
+        "bias_type": raw_bias["label"],
+        "bias_match": raw_bias["matched"],
+        "violence_score": violence,
+        "news_score": news
     }
