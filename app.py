@@ -2,12 +2,15 @@ import streamlit as st
 from model import analyze_text
 from explain import explain, risk_level
 from news import get_news
+from sentence_transformers import SentenceTransformer, util
 
-st.set_page_config(page_title="AI Ethics Radar v4", layout="centered")
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-st.title("🧠 AI Ethics Radar v4 — Explainable AI System")
+st.set_page_config(page_title="Trust & Safety AI v5.1", layout="centered")
 
-# ---------------- INPUT ----------------
+st.title("🧠 AI Trust & Safety System v5.1")
+
+# ---------------- ANALYSIS ----------------
 text = st.text_area("Enter text")
 
 if st.button("Analyze"):
@@ -15,44 +18,40 @@ if st.button("Analyze"):
 
         result = analyze_text(text)
 
-        st.write("## 🧠 AI Analysis")
+        st.write("## 🧠 Risk Overview")
 
-        st.write("**Category:**", result["category"])
-        st.write("**Bias Type:**", result["bias_type"])
+        st.write("Bias Risk:", risk_level(result["bias_score"]))
+        st.write("Toxicity Risk:", risk_level(result["toxicity"]))
 
-        st.write("**Bias Level:**", risk_level(result["bias_score"]))
-        st.write("**Toxicity Level:**", risk_level(result["toxicity"]))
-        st.write("**Violence Level:**", risk_level(result["violence_score"]))
-        st.write("**News Level:**", risk_level(result["news_score"]))
+        st.write("### 📊 Raw Metrics")
+        st.json(result)
 
-        st.write("### 📊 Raw Scores")
-        st.json({
-            "bias": result["bias_score"],
-            "toxicity": result["toxicity"],
-            "violence": result["violence_score"],
-            "news": result["news_score"]
-        })
-
-        st.write("### 🧾 Explanation")
+        st.write("### 🔍 Explanation")
         st.info(explain(result, text))
 
-# ---------------- NEWS ----------------
-st.subheader("🌍 Live News Scan")
+# ---------------- NEWS FILTERING ----------------
+st.subheader("🌍 Relevant News")
 
-articles = get_news()
+news = get_news()
 
-for a in articles:
-    st.write("## 🧾 News")
-    st.write(a["title"])
-    st.write(a["summary"])
+if text.strip():
+    input_vec = embedder.encode(text, convert_to_tensor=True)
 
-    result = analyze_text(a["title"])
+    filtered = []
 
-    st.write("**Category:**", result["category"])
-    st.write("Bias:", result["bias_score"])
-    st.write("Toxicity:", result["toxicity"])
+    for n in news:
+        vec = embedder.encode(n["title"], convert_to_tensor=True)
+        score = util.cos_sim(input_vec, vec).item()
 
-    st.write("**Why:**", risk_level(result["bias_score"]), "| system based classification")
+        if score > 0.25:
+            n["relevance"] = round(score, 3)
+            filtered.append(n)
 
-    st.write("[Read full article]", a["link"])
-    st.divider()
+    filtered = sorted(filtered, key=lambda x: x["relevance"], reverse=True)
+
+    for n in filtered:
+        st.write("## 🧾", n["title"])
+        st.write(n["summary"])
+        st.write("Relevance:", n["relevance"])
+        st.write("[Read]", n["link"])
+        st.divider()
