@@ -1,68 +1,56 @@
 import streamlit as st
-import requests
 import feedparser
-from model import BiasModelV2
+from model import EthicsRadarResearch
 
-st.set_page_config(page_title="AI Ethics Radar V2", layout="wide")
+st.set_page_config(page_title="AI Ethics Radar Research", layout="wide")
 
 st.markdown("""
-<h1 style='text-align:center; color:#00ffd5;'>🧠 AI Ethics Radar V2</h1>
-<p style='text-align:center;'>Advanced Bias • Toxicity • Context AI Engine</p>
+<h1 style='text-align:center;'>🧠 AI Ethics Radar — Research Edition</h1>
+<p style='text-align:center;'>Hybrid ML + Linguistic Bias Detection System</p>
 """, unsafe_allow_html=True)
 
 # -------------------------
 # MODEL
 # -------------------------
 @st.cache_resource
-def load_model():
-    m = BiasModelV2()
+def load():
+    m = EthicsRadarResearch()
     m.train()
     return m
 
-model = load_model()
-
-# -------------------------
-# DATA
-# -------------------------
-def get_news():
-    try:
-        feed = feedparser.parse("https://news.google.com/rss")
-        return [x.title for x in feed.entries[:5]]
-    except:
-        return []
+model = load()
 
 # -------------------------
 # INPUT
 # -------------------------
-st.header("🔍 Analyze Text")
+st.header("🔍 Text Analysis")
 text = st.text_area("Enter text")
 
 if st.button("Analyze") and text:
 
     r = model.predict(text)
 
-    c1,c2,c3,c4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
 
     c1.metric("Toxicity", f"{r['toxicity']:.2f}")
     c2.metric("Bias", f"{r['bias']:.2f}")
     c3.metric("Risk", f"{r['risk']:.2f}")
-    c4.metric("Sentiment", f"{r['sentiment']:.2f}")
+    c4.metric("Framing", f"{r['framing_bias']:.2f}")
 
-    st.subheader("Explainability")
+    st.subheader("Explainability Layer")
 
-    words = model.explain(text)
-
-    for w,s in words:
-        color = "red" if s < 0 else "green"
-        st.markdown(f"<span style='color:{color}; font-size:18px'>{w}</span>", unsafe_allow_html=True)
-
-    if r["bias"] > 0.6:
-        st.error("⚠ Bias detected")
+    for word, score in model.explain(text):
+        color = "red" if score < 0 else "green"
+        st.markdown(f"<span style='color:{color}; font-size:18px'>{word}</span>", unsafe_allow_html=True)
 
 # -------------------------
-# LIVE FEED
+# LIVE NEWS ANALYSIS
 # -------------------------
-st.header("🌍 Live Intelligence Feed")
+st.header("🌍 Live Media Bias Scan")
+
+def get_news():
+    feed = feedparser.parse("https://news.google.com/rss")
+    return [x.title for x in feed.entries[:6]]
 
 if st.button("Run Live Scan"):
 
@@ -73,10 +61,6 @@ if st.button("Run Live Scan"):
         st.markdown("### 🧾 News")
         st.write(item)
 
-        col1,col2,col3 = st.columns(3)
-
-        col1.metric("Toxicity", f"{r['toxicity']:.2f}")
-        col2.metric("Bias", f"{r['bias']:.2f}")
-        col3.metric("Risk", f"{r['risk']:.2f}")
+        st.write(r)
 
         st.markdown("---")
