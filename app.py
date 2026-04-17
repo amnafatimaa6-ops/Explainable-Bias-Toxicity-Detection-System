@@ -1,44 +1,47 @@
 import streamlit as st
 import requests
+import feedparser
 from model import BiasModel
 
-# ----------------------------
-# INIT MODEL
-# ----------------------------
-model = BiasModel()
-model.train()
-
-# ----------------------------
-# NEWS API CONFIG
-# ----------------------------
-NEWS_API_KEY = "YOUR_API_KEY_HERE"
-
-def get_news(query="technology"):
-    url = f"https://newsapi.org/v2/everything?q={query}&language=en&pageSize=5&apiKey={NEWS_API_KEY}"
-    response = requests.get(url)
-    return response.json().get("articles", [])
-
-
-# ----------------------------
-# STREAMLIT UI
-# ----------------------------
 st.set_page_config(page_title="AI Ethics Monitor", layout="wide")
 
-st.title("🧠 AI Ethics & Bias Intelligence System")
+st.title("🧠 AI Ethics & Bias Intelligence System (Live Offline Mode)")
 
-st.write("""
-A real-time AI system that detects toxicity, bias signals,
-and analyzes live news articles for ethical risks.
-""")
+st.write("Analyzing real-world news using AI (no API keys needed).")
 
-# ----------------------------
-# USER INPUT SECTION
-# ----------------------------
-st.header("🔍 Analyze Custom Text")
+# ---------------------------
+# LOAD MODEL (CACHED)
+# ---------------------------
+@st.cache_resource
+def load_model():
+    m = BiasModel()
+    m.train()
+    return m
+
+model = load_model()
+
+# ---------------------------
+# LIVE RSS SOURCES (NO API KEY)
+# ---------------------------
+RSS_FEEDS = {
+    "Google News": "https://news.google.com/rss",
+    "BBC World": "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "BBC Tech": "https://feeds.bbci.co.uk/news/technology/rss.xml"
+}
+
+def get_news(feed_url):
+    feed = feedparser.parse(feed_url)
+    return feed.entries[:5]
+
+
+# ---------------------------
+# TEXT ANALYSIS
+# ---------------------------
+st.header("🔍 Analyze Your Text")
 
 text = st.text_area("Enter text")
 
-if st.button("Analyze Text"):
+if st.button("Analyze Text") and text:
 
     result = model.predict(text)
 
@@ -50,41 +53,42 @@ if st.button("Analyze Text"):
     explanation = model.explain(text, "toxicity_label")
 
     for word, score in explanation:
-        st.write(f"**{word}** → {score:.3f}")
+        st.write(f"{word} → {score:.3f}")
 
 
-# ----------------------------
-# LIVE NEWS ANALYSIS SECTION
-# ----------------------------
-st.header("🌍 Live News Bias Scanner")
+# ---------------------------
+# LIVE NEWS ANALYSIS
+# ---------------------------
+st.header("🌍 Live News Bias Scanner (No API Required)")
 
-query = st.text_input("Search news topic (e.g. politics, AI, war, education)", "technology")
+source = st.selectbox("Select News Source", list(RSS_FEEDS.keys()))
 
-if st.button("Fetch & Analyze News"):
+if st.button("Fetch Live News"):
 
-    articles = get_news(query)
+    articles = get_news(RSS_FEEDS[source])
 
-    if not articles:
-        st.warning("No articles found or API issue.")
-    else:
-        for article in articles:
+    for article in articles:
 
-            content = article.get("title", "") + " " + str(article.get("description", ""))
+        title = article.get("title", "")
+        summary = article.get("summary", "")
 
-            if not content.strip():
-                continue
+        content = title + " " + summary
 
-            result = model.predict(content)
+        if not content.strip():
+            continue
 
-            st.markdown("### 📰 " + article["title"])
-            st.write(article["description"])
+        result = model.predict(content)
 
-            col1, col2 = st.columns(2)
+        st.markdown("### 📰 " + title)
 
-            with col1:
-                st.write("**Toxicity:**", result["toxicity"])
+        st.write(summary)
 
-            with col2:
-                st.write("**Bias Signal:**", result["bias_signal"])
+        col1, col2 = st.columns(2)
 
-            st.markdown("---")
+        with col1:
+            st.metric("Toxicity", result["toxicity"])
+
+        with col2:
+            st.metric("Bias Signal", result["bias_signal"])
+
+        st.markdown("---")
