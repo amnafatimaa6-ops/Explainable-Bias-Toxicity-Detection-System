@@ -1,61 +1,51 @@
 import streamlit as st
-import feedparser
-from model import EthicsRadarSafe
+from model import analyze_text, highlight_text
+from news import get_news
 
-st.set_page_config(page_title="AI Ethics Radar", layout="wide")
+st.set_page_config(page_title="AI Ethics Radar", layout="centered")
 
-st.title("🧠 AI Ethics Radar — Deployment Safe Version")
+st.title("🧠 AI Ethics Radar — Live Bias Scanner")
 
-# -------------------------
-# LOAD MODEL
-# -------------------------
-@st.cache_resource
-def load_model():
-    m = EthicsRadarSafe()
-    m.train()
-    return m
-
-model = load_model()
-
-# -------------------------
-# INPUT
-# -------------------------
-st.header("🔍 Analyze Text")
+# ----------------------------
+# USER INPUT
+# ----------------------------
+st.subheader("🔍 Analyze Text")
 
 text = st.text_area("Enter text")
 
-if st.button("Analyze") and text:
+if st.button("Analyze"):
+    if text.strip() == "":
+        st.warning("Please enter text")
+    else:
+        result = analyze_text(text)
 
-    r = model.predict(text)
+        st.write("### 🧠 AI Analysis")
+        st.write("**Risk Level:**", result["risk_level"])
+        st.write("**Toxicity Score:**", result["toxicity"])
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+        highlighted = highlight_text(text, result["flagged_words"])
+        st.write("**Highlighted Text:**", highlighted)
 
-    c1.metric("Toxicity", f"{r['toxicity']:.2f}")
-    c2.metric("Bias", f"{r['bias']:.2f}")
-    c3.metric("Risk", f"{r['risk']:.2f}")
-    c4.metric("Framing", f"{r['framing']:.2f}")
-    c5.metric("Sentiment", f"{r['sentiment']:.2f}")
+        st.write("**Explanation:**", result["explanation"])
 
-# -------------------------
-# LIVE FEED
-# -------------------------
-st.header("🌍 Live News Scan")
 
-def get_news():
-    try:
-        feed = feedparser.parse("https://news.google.com/rss")
-        return [x.title for x in feed.entries[:5]]
-    except:
-        return []
+# ----------------------------
+# LIVE NEWS SECTION
+# ----------------------------
+st.subheader("🌍 Live News Scan")
 
-if st.button("Run Scan"):
+articles = get_news()
 
-    for item in get_news():
+for a in articles:
+    st.write("## 🧾 News")
 
-        r = model.predict(item)
+    st.write("###", a["title"])
+    st.write(a["summary"])
 
-        st.markdown("### 🧾 News")
-        st.write(item)
-        st.json(r)
+    result = analyze_text(a["title"])
 
-        st.markdown("---")
+    st.write("### 🔍 AI Analysis")
+    st.json(result)
+
+    st.write("[Read full article]", a["link"])
+    st.divider()
