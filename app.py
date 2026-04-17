@@ -1,57 +1,68 @@
-import streamlit as st
-from model import analyze_text, highlight_text
-from news import get_news
+from transformers import pipeline
 
-st.set_page_config(page_title="AI Ethics Radar", layout="centered")
+# Toxicity model
+toxicity_model = pipeline(
+    "text-classification",
+    model="unitary/toxic-bert"
+)
 
-st.title("🧠 AI Ethics Radar — Live Bias Scanner")
+# Sentiment model
+sentiment_model = pipeline("sentiment-analysis")
 
-# ----------------------------
-# USER INPUT
-# ----------------------------
-st.subheader("🔍 Analyze Text")
+bias_patterns = ["women are", "men are", "they are", "all", "always", "never"]
+target_groups = ["women", "men", "immigrants", "muslims", "christians", "people"]
+violence_keywords = ["killed", "murder", "attack", "bomb", "shooting", "war", "violence"]
 
-text = st.text_area("Enter text")
 
-if st.button("Analyze"):
-    if text.strip() == "":
-        st.warning("Please enter text")
+def analyze_text(text):
+    text_lower = text.lower()
+
+    tox = toxicity_model(text)[0]
+    sentiment = sentiment_model(text)[0]
+
+    tox_score = float(tox["score"])
+    sentiment_label = sentiment["label"]
+
+    generalization = any(p in text_lower for p in bias_patterns)
+    targets = [t for t in target_groups if t in text_lower]
+    violence = any(v in text_lower for v in violence_keywords)
+
+    # CATEGORY LOGIC
+    if generalization and targets:
+        category = "Bias / Stereotype"
+        explanation = f"This statement generalizes about {', '.join(targets)}."
+
+    elif violence:
+        category = "Violence / Crime Context"
+        explanation = "This text refers to violence or crime events, not bias."
+
+    elif tox_score > 0.7:
+        category = "Toxic Language"
+        explanation = "Highly aggressive or offensive language detected."
+
+    elif sentiment_label == "NEGATIVE":
+        category = "Negative News"
+        explanation = "Negative sentiment but not necessarily biased."
+
     else:
-        result = analyze_text(text)
+        category = "Neutral"
+        explanation = "No significant bias or toxicity detected."
 
-        st.write("### 🧠 AI Analysis")
-        st.write("**Risk Level:**", result["risk_level"])
-        st.write("**Toxicity Score:**", result["toxicity_score"])
+    return {
+        "category": category,
+        "toxicity_score": round(tox_score, 3),
+        "sentiment": sentiment_label,
+        "targets": targets,
+        "generalization": generalization,
+        "explanation": explanation
+    }
 
-        highlighted = highlight_text(text, result["flagged_words"])
-        st.write("**Highlighted Text:**", highlighted)
 
-        if result["targets"]:
-            st.write("**Detected Target Groups:**", ", ".join(result["targets"]))
+# SAFE highlight function (NO IMPORT ERRORS EVER)
+def highlight_text(text, words):
+    if not words:
+        return text
 
-        st.write("**Explanation:**", result["explanation"])
-
-# ----------------------------
-# LIVE NEWS SECTION
-# ----------------------------
-st.subheader("🌍 Live News Scan")
-
-articles = get_news()
-
-for a in articles:
-    st.write("## 🧾 News")
-
-    st.write("###", a["title"])
-
-    if a["summary"] != "No summary available":
-        st.write(a["summary"])
-
-    result = analyze_text(a["title"])
-
-    st.write("### 🔍 AI Analysis")
-    st.write("**Risk Level:**", result["risk_level"])
-    st.write("**Score:**", result["toxicity_score"])
-    st.write("**Explanation:**", result["explanation"])
-
-    st.write("[Read full article]", a["link"])
-    st.divider()
+    for w in words:
+        text = text.replace(w, f"**{w}**")
+    return text
