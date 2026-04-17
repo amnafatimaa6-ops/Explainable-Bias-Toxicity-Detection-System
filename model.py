@@ -3,8 +3,6 @@ import pandas as pd
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-
 from datasets import load_dataset
 from nltk.sentiment import SentimentIntensityAnalyzer
 import nltk
@@ -25,11 +23,11 @@ class EthicsRadarStable:
         self.sia = SentimentIntensityAnalyzer()
 
     # -------------------------
-    # SAFE DATA LOADING (FIXED)
+    # DATA (SAFE SMALL SPLIT)
     # -------------------------
     def load_data(self):
 
-        dataset = load_dataset("civil_comments", split="train[:5%]")
+        dataset = load_dataset("civil_comments", split="train[:2%]")
         df = pd.DataFrame(dataset)
 
         df = df[["text", "toxicity", "identity_attack", "insult"]].dropna()
@@ -44,7 +42,7 @@ class EthicsRadarStable:
         return df[["text", "toxicity_label", "bias_label"]]
 
     # -------------------------
-    # TRAIN (NO CRASH VERSION)
+    # TRAIN
     # -------------------------
     def train(self):
 
@@ -65,7 +63,7 @@ class EthicsRadarStable:
 
             self.models[target] = model
 
-        print("✔ Stable model trained")
+        print("✔ Model trained successfully")
 
     # -------------------------
     # SENTIMENT
@@ -78,16 +76,11 @@ class EthicsRadarStable:
     # -------------------------
     def framing_bias(self, text):
 
-        patterns = [
-            "are bad", "are evil", "are dangerous",
-            "all", "always", "never"
-        ]
+        patterns = ["are bad", "are evil", "are dangerous", "all", "never", "always"]
 
         t = text.lower()
 
-        score = sum(0.2 for p in patterns if p in t)
-
-        return min(score, 1.0)
+        return min(sum(0.2 for p in patterns if p in t), 1.0)
 
     # -------------------------
     # RISK ENGINE
@@ -107,18 +100,16 @@ class EthicsRadarStable:
 
         t = text.lower()
 
-        score = sum(v for k,v in keywords.items() if k in t)
-
-        return min(score, 1.0)
+        return min(sum(v for k, v in keywords.items() if k in t), 1.0)
 
     # -------------------------
-    # NORMALIZE (IMPORTANT)
+    # NORMALIZER
     # -------------------------
     def norm(self, x):
         return float(np.clip(x, 0.05, 0.95))
 
     # -------------------------
-    # PREDICT (SAFE VERSION)
+    # PREDICT
     # -------------------------
     def predict(self, text):
 
