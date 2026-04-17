@@ -4,9 +4,9 @@ from news import get_news
 
 st.set_page_config(page_title="AI Ethics Radar", layout="centered")
 
-st.title("🧠 AI Ethics Radar — Stable Version")
+st.title("🧠 AI Ethics Radar — Context Aware System")
 
-# ---------------- TEXT INPUT ----------------
+# ---------------- USER INPUT ----------------
 st.subheader("🔍 Analyze Text")
 
 text = st.text_area("Enter text")
@@ -18,6 +18,7 @@ if st.button("Analyze"):
         result = analyze_text(text)
 
         st.write("### 🧠 AI Analysis")
+
         st.write("**Category:**", result["category"])
         st.write("**Toxicity Score:**", result["toxicity_score"])
         st.write("**Sentiment:**", result["sentiment"])
@@ -26,7 +27,6 @@ if st.button("Analyze"):
         st.write("**Highlighted Text:**", highlighted)
 
         st.write("**Explanation:**", result["explanation"])
-
 
 # ---------------- NEWS ----------------
 st.subheader("🌍 Live News Scan")
