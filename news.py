@@ -12,8 +12,6 @@ def get_news():
         feed = feedparser.parse(url)
 
         for entry in feed.entries[:3]:
-
-            # SAFE extraction
             title = entry.get("title", "No title available")
             summary = entry.get("summary", "No summary available")
             link = entry.get("link", "#")
